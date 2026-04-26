@@ -161,6 +161,41 @@ func (s *SQLiteStore) GetPayload(ctx context.Context, storageID string) ([]byte,
 	return data, true, nil
 }
 
+// ListAll returns message metadata across all channels, paginated.
+func (s *SQLiteStore) ListAll(ctx context.Context, limit, offset int) ([]*payloadref.Envelope, error) {
+	if limit <= 0 {
+		limit = -1
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT channel_id, message_id, received_at, status, storage_id, location
+		FROM messages
+		ORDER BY received_at DESC
+		LIMIT ? OFFSET ?
+	`, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("query messages: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*payloadref.Envelope
+	for rows.Next() {
+		var env payloadref.Envelope
+		var receivedAtStr string
+		if err := rows.Scan(&env.ChannelID, &env.MessageID, &receivedAtStr, &env.Status, &env.Ref.StorageID, &env.Ref.Location); err != nil {
+			return nil, fmt.Errorf("scan message row: %w", err)
+		}
+		env.ReceivedAt, err = parseTime(receivedAtStr)
+		if err != nil {
+			return nil, fmt.Errorf("parse received_at: %w", err)
+		}
+		out = append(out, &env)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate rows: %w", err)
+	}
+	return out, nil
+}
+
 // Close closes the underlying database connection.
 func (s *SQLiteStore) Close() error {
 	return s.db.Close()
