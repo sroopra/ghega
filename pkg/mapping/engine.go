@@ -196,7 +196,8 @@ func (s hl7Segment) getField(fieldNo, compNo int) (string, error) {
 		if fieldNo == 1 {
 			return "|", nil
 		}
-		idx = fieldNo
+		// fields[0] is the segment name, fields[1] is MSH-2, etc.
+		idx = fieldNo - 1
 	} else {
 		idx = fieldNo
 	}

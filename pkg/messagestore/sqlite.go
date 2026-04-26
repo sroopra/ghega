@@ -161,6 +161,22 @@ func (s *SQLiteStore) GetPayload(ctx context.Context, storageID string) ([]byte,
 	return data, true, nil
 }
 
+// UpdateStatus updates the status of a message by message ID.
+func (s *SQLiteStore) UpdateStatus(ctx context.Context, messageID string, status string) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE messages SET status = ? WHERE message_id = ?`, status, messageID)
+	if err != nil {
+		return fmt.Errorf("update status: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("rows affected: %w", err)
+	}
+	if n == 0 {
+		return &ErrNotFound{MessageID: messageID}
+	}
+	return nil
+}
+
 // Close closes the underlying database connection.
 func (s *SQLiteStore) Close() error {
 	return s.db.Close()

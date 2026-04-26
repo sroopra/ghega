@@ -5,12 +5,17 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
 	"time"
+
+	"github.com/sroopra/ghega/internal/engine"
+	"github.com/sroopra/ghega/pkg/messagestore"
+	"github.com/sroopra/ghega/pkg/mllp"
 )
 
 func runServe(args []string) error {
@@ -22,6 +27,23 @@ func runServe(args []string) error {
 		if p, err := strconv.Atoi(envPort); err == nil {
 			*port = p
 		}
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
+	// Initialize message store: prefer SQLite, fall back to MemoryStore.
+	var store messagestore.Store
+	dsn := os.Getenv("GHEGA_DATABASE_URL")
+	if dsn == "" {
+		dsn = "ghega.db"
+	}
+	sqliteStore, err := messagestore.NewSQLiteStore(dsn)
+	if err != nil {
+		logger.Warn("failed to open sqlite store, falling back to memory store", slog.String("error", err.Error()))
+		store = messagestore.NewInMemoryStore()
+	} else {
+		store = sqliteStore
+		logger.Info("sqlite store initialized", slog.String("dsn", dsn))
 	}
 
 	mux := http.NewServeMux()
@@ -36,9 +58,18 @@ func runServe(args []string) error {
 		Handler: mux,
 	}
 
+	// Initialize MLLP listener.
+	eng := engine.NewEngine(store, logger)
+	mllpCfg := mllp.ConfigFromEnv()
+	mllpListener := mllp.NewListener(mllpCfg, eng.MLLPHandler(), logger)
+
+	if err := mllpListener.Start(); err != nil {
+		return fmt.Errorf("mllp listener start error: %w", err)
+	}
+
 	errCh := make(chan error, 1)
 	go func() {
-		fmt.Printf("Ghega server listening on port %d\n", *port)
+		logger.Info("ghega http server listening", slog.Int("port", *port))
 		errCh <- srv.ListenAndServe()
 	}()
 
@@ -48,13 +79,16 @@ func runServe(args []string) error {
 	select {
 	case err := <-errCh:
 		if err != nil && err != http.ErrServerClosed {
+			_ = mllpListener.Stop()
 			return fmt.Errorf("server error: %w", err)
 		}
 	case sig := <-sigCh:
-		fmt.Printf("\nReceived signal %s, shutting down...\n", sig)
+		logger.Info("received shutdown signal", slog.String("signal", sig.String()))
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		return srv.Shutdown(ctx)
+		_ = srv.Shutdown(ctx)
+		_ = mllpListener.Stop()
+		return nil
 	}
 
 	return nil

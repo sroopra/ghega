@@ -88,3 +88,16 @@ func (s *InMemoryStore) GetPayload(storageID string) ([]byte, bool) {
 	}
 	return append([]byte(nil), p...), true
 }
+
+// UpdateStatus updates the status of a message by message ID.
+func (s *InMemoryStore) UpdateStatus(_ context.Context, messageID string, status string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	env, ok := s.metadata[messageID]
+	if !ok {
+		return &ErrNotFound{MessageID: messageID}
+	}
+	env.Status = status
+	return nil
+}
