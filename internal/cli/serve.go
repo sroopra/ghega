@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"net/http"
@@ -11,11 +10,15 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+
+	"github.com/sroopra/ghega/internal/api"
+	"github.com/sroopra/ghega/pkg/messagestore"
 )
 
 func runServe(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	port := fs.Int("port", 8080, "HTTP server port")
+	devAuth := fs.Bool("dev-auth", false, "Bypass authentication for local development")
 	_ = fs.Parse(args)
 
 	if envPort := os.Getenv("GHEGA_PORT"); envPort != "" {
@@ -24,12 +27,13 @@ func runServe(args []string) error {
 		}
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
-	})
+	// Initialize dependencies.
+	store := messagestore.NewInMemoryStore()
+	registry := api.NewInMemoryChannelRegistry()
+
+	// TODO: load channel configs from file/directory in future iterations.
+
+	mux := api.NewRouter(store, registry, *devAuth)
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", *port),
