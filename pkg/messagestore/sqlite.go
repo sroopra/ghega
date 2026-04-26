@@ -146,6 +146,41 @@ func (s *SQLiteStore) ListByChannel(ctx context.Context, channelID string, limit
 	return out, nil
 }
 
+// ListAll returns all message metadata, paginated.
+func (s *SQLiteStore) ListAll(ctx context.Context, limit, offset int) ([]*payloadref.Envelope, error) {
+	if limit <= 0 {
+		limit = -1
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT channel_id, message_id, received_at, status, storage_id, location
+		FROM messages
+		ORDER BY received_at DESC
+		LIMIT ? OFFSET ?
+	`, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("query messages: %w", err)
+	}
+	defer rows.Close()
+
+	var out []*payloadref.Envelope
+	for rows.Next() {
+		var env payloadref.Envelope
+		var receivedAtStr string
+		if err := rows.Scan(&env.ChannelID, &env.MessageID, &receivedAtStr, &env.Status, &env.Ref.StorageID, &env.Ref.Location); err != nil {
+			return nil, fmt.Errorf("scan message row: %w", err)
+		}
+		env.ReceivedAt, err = parseTime(receivedAtStr)
+		if err != nil {
+			return nil, fmt.Errorf("parse received_at: %w", err)
+		}
+		out = append(out, &env)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate rows: %w", err)
+	}
+	return out, nil
+}
+
 // GetPayload retrieves raw payload bytes by storage ID.
 // This is intended for testing and internal use only.
 func (s *SQLiteStore) GetPayload(ctx context.Context, storageID string) ([]byte, bool, error) {

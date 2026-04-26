@@ -82,6 +82,64 @@ func TestHealthzEndpoint(t *testing.T) {
 	}
 }
 
+func TestServeDevAuthBypass(t *testing.T) {
+	port := "18081"
+	os.Setenv("GHEGA_PORT", port)
+	defer os.Unsetenv("GHEGA_PORT")
+
+	go func() {
+		_ = runServe([]string{"-port", port, "-dev-auth"})
+	}()
+
+	url := fmt.Sprintf("http://localhost:%s/api/v1/messages", port)
+	var resp *http.Response
+	var err error
+	for i := 0; i < 50; i++ {
+		resp, err = http.Get(url)
+		if err == nil {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected status 200 with dev-auth, got %d", resp.StatusCode)
+	}
+}
+
+func TestServeAuthRequired(t *testing.T) {
+	port := "18082"
+	os.Setenv("GHEGA_PORT", port)
+	defer os.Unsetenv("GHEGA_PORT")
+
+	go func() {
+		_ = runServe([]string{"-port", port})
+	}()
+
+	url := fmt.Sprintf("http://localhost:%s/api/v1/messages", port)
+	var resp *http.Response
+	var err error
+	for i := 0; i < 50; i++ {
+		resp, err = http.Get(url)
+		if err == nil {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if err != nil {
+		t.Fatalf("request failed: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("expected status 401 without auth, got %d", resp.StatusCode)
+	}
+}
+
 func TestChannelValidateExits1(t *testing.T) {
 	if os.Getenv("BE_TEST_CHANNEL_VALIDATE") == "1" {
 		_ = runChannel([]string{"validate", "/tmp/fake-channel.yaml"})

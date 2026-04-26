@@ -77,6 +77,33 @@ func (s *InMemoryStore) ListByChannel(_ context.Context, channelID string, limit
 	return out, nil
 }
 
+// ListAll returns all message metadata, paginated.
+func (s *InMemoryStore) ListAll(_ context.Context, limit, offset int) ([]*payloadref.Envelope, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	all := make([]*payloadref.Envelope, 0, len(s.metadata))
+	for _, env := range s.metadata {
+		cp := *env
+		all = append(all, &cp)
+	}
+
+	if offset >= len(all) {
+		return []*payloadref.Envelope{}, nil
+	}
+	end := offset + limit
+	if end > len(all) || limit <= 0 {
+		end = len(all)
+	}
+
+	out := make([]*payloadref.Envelope, 0, end-offset)
+	for i := offset; i < end; i++ {
+		cp := *all[i]
+		out = append(out, &cp)
+	}
+	return out, nil
+}
+
 // GetPayload retrieves raw payload bytes by storage ID.
 // This is intended for testing and internal use only.
 func (s *InMemoryStore) GetPayload(storageID string) ([]byte, bool) {
