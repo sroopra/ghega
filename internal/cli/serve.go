@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+
+	"github.com/sroopra/ghega/internal/api"
 )
 
 func runServe(args []string) error {
@@ -30,6 +32,7 @@ func runServe(args []string) error {
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 	})
+	mux.Handle("/api/v1/", api.Handler())
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", *port),
