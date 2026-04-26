@@ -62,6 +62,12 @@ func (l *Logger) LogMessageFailed(channelID, messageID string, err error) {
 	)
 }
 
+// SLogger returns the underlying structured logger for use with components
+// that require a *slog.Logger. Callers must ensure no payload bytes are logged.
+func (l *Logger) SLogger() *slog.Logger {
+	return l.inner
+}
+
 // LogInfo logs a generic informational event with structured fields.
 // Callers must ensure that no field value contains payload bytes.
 func (l *Logger) LogInfo(msg string, attrs ...slog.Attr) {
