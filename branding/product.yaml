@@ -1,0 +1,13 @@
+productName: Ghega
+productSlug: ghega
+cliName: ghega
+repoName: ghega
+githubOrg: ghega
+containerImage: ghcr.io/ghega/ghega
+helmChart: ghega
+k8sNamespaceExample: ghega-system
+envPrefix: GHEGA_
+configDir: ~/.config/ghega/
+uiName: Ghega Console
+skillsName: Ghega Skills
+mcpServerName: Ghega MCP Server
