@@ -1,33 +1,26 @@
-// Package hl7v2 provides a basic HL7v2 parser and ACK generator.
-// This is a minimal implementation sufficient for MLLP integration;
-// full parsing will be provided by a dedicated work item.
+// Package hl7v2 provides a basic HL7v2 message parser and ACK generator.
 package hl7v2
 
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Message represents a parsed HL7v2 message.
 type Message struct {
-	Raw       []byte
-	Segments  []Segment
-	Separators Separators
+	Segments        []Segment
+	FieldSeparator  byte
+	ComponentSep    byte
+	RepetitionSep   byte
+	EscapeChar      byte
+	SubcomponentSep byte
 }
 
-// Segment represents a single HL7 segment.
+// Segment represents a single HL7v2 segment.
 type Segment struct {
-	Name   string
+	Type   string
 	Fields []string
-}
-
-// Separators holds the HL7 separator characters from MSH-1 and MSH-2.
-type Separators struct {
-	Field        string
-	Component    string
-	Repetition   string
-	Escape       string
-	Subcomponent string
 }
 
 // Parse parses a raw HL7v2 message into a Message.
@@ -36,147 +29,188 @@ func Parse(raw []byte) (*Message, error) {
 		return nil, fmt.Errorf("empty message")
 	}
 
-	// Normalize line endings to \r
-	content := strings.ReplaceAll(string(raw), "\n", "\r")
-	segments := strings.Split(content, "\r")
+	// Normalize line endings: treat both \r\n and bare \n as segment
+	// separators, mapping them to the standard \r.
+	str := string(raw)
+	str = strings.ReplaceAll(str, "\r\n", "\r")
+	str = strings.ReplaceAll(str, "\n", "\r")
+
+	parts := strings.Split(str, "\r")
 
 	msg := &Message{
-		Raw:      raw,
-		Segments: make([]Segment, 0, len(segments)),
+		FieldSeparator:  '|',
+		ComponentSep:    '^',
+		RepetitionSep:   '~',
+		EscapeChar:      '\\',
+		SubcomponentSep: '&',
 	}
 
-	for _, segStr := range segments {
-		segStr = strings.TrimSpace(segStr)
-		if segStr == "" {
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
 			continue
 		}
-		seg := parseSegment(segStr)
-		msg.Segments = append(msg.Segments, seg)
 
-		if seg.Name == "MSH" {
-			msg.Separators = parseSeparators(seg)
+		// The first non-empty segment must be MSH; the 4th character is the
+		// field separator and must be discovered before splitting fields.
+		if len(msg.Segments) == 0 && len(part) >= 4 && strings.HasPrefix(part, "MSH") {
+			msg.FieldSeparator = part[3]
 		}
+
+		seg, err := parseSegment(part, msg)
+		if err != nil {
+			return nil, err
+		}
+		msg.Segments = append(msg.Segments, seg)
 	}
 
 	if len(msg.Segments) == 0 {
 		return nil, fmt.Errorf("no segments found")
 	}
 
-	if msg.Segments[0].Name != "MSH" {
-		return nil, fmt.Errorf("message must start with MSH segment")
+	if msg.Segments[0].Type != "MSH" {
+		return nil, fmt.Errorf("first segment must be MSH, got %s", msg.Segments[0].Type)
 	}
 
 	return msg, nil
 }
 
-func parseSegment(segStr string) Segment {
-	// MSH is special: the first character after "MSH" is the field separator itself.
-	// e.g. MSH|^~\&|APP|...  -> separator is |
-	// For non-MSH segments, we just split by |.
-	if !strings.HasPrefix(segStr, "MSH") {
-		fields := strings.Split(segStr, "|")
-		return Segment{Name: fields[0], Fields: fields}
+func parseSegment(s string, msg *Message) (Segment, error) {
+	if len(s) < 3 {
+		return Segment{}, fmt.Errorf("segment too short: %q", s)
 	}
 
-	// For MSH, extract the separator character (the char right after "MSH")
-	if len(segStr) < 4 {
-		return Segment{Name: "MSH", Fields: []string{"MSH"}}
+	parts := strings.Split(s, string(msg.FieldSeparator))
+	if len(parts) == 0 {
+		return Segment{}, fmt.Errorf("empty segment")
 	}
-	sep := string(segStr[3])
-	fields := strings.Split(segStr, sep)
-	// The first field is "MSH", second is the separator char itself (MSH-1)
-	// Re-insert the separator as fields[1] to preserve HL7 field indexing
-	expanded := make([]string, 0, len(fields)+1)
-	expanded = append(expanded, fields[0]) // "MSH"
-	expanded = append(expanded, sep)       // MSH-1: field separator
-	expanded = append(expanded, fields[1:]...)
-	return Segment{Name: "MSH", Fields: expanded}
-}
 
-func parseSeparators(msh Segment) Separators {
-	s := Separators{
-		Field:        "|",
-		Component:    "^",
-		Repetition:   "~",
-		Escape:       "\\",
-		Subcomponent: "&",
+	seg := Segment{
+		Type:   parts[0],
+		Fields: parts[1:],
 	}
-	if len(msh.Fields) > 1 && msh.Fields[1] != "" {
-		s.Field = msh.Fields[1]
-	}
-	if len(msh.Fields) > 2 && len(msh.Fields[2]) >= 4 {
-		s.Component = string(msh.Fields[2][0])
-		s.Repetition = string(msh.Fields[2][1])
-		s.Escape = string(msh.Fields[2][2])
-		s.Subcomponent = string(msh.Fields[2][3])
-	}
-	return s
-}
 
-// GetField returns the field value at the given segment and position (1-based).
-func (m *Message) GetField(segment string, fieldIndex int) string {
-	for _, seg := range m.Segments {
-		if seg.Name == segment {
-			if fieldIndex < len(seg.Fields) {
-				return seg.Fields[fieldIndex]
-			}
-			return ""
+	if seg.Type == "MSH" {
+		// The field separator itself is MSH-1 and was consumed by Split.
+		seg.Fields = append([]string{string(msg.FieldSeparator)}, seg.Fields...)
+
+		// Parse encoding characters from MSH-2 to update message separators.
+		if len(seg.Fields) > 1 && len(seg.Fields[1]) >= 4 {
+			enc := seg.Fields[1]
+			msg.ComponentSep = enc[0]
+			msg.RepetitionSep = enc[1]
+			msg.EscapeChar = enc[2]
+			msg.SubcomponentSep = enc[3]
 		}
 	}
-	return ""
+
+	return seg, nil
 }
 
-// GenerateACK generates an HL7v2 ACK message for the given incoming message.
+// Field returns the nth field of the segment (1-indexed).
+func (s *Segment) Field(n int) string {
+	if n < 1 || n > len(s.Fields) {
+		return ""
+	}
+	return s.Fields[n-1]
+}
+
+// Segment returns the first segment with the given type.
+func (m *Message) Segment(name string) *Segment {
+	for i := range m.Segments {
+		if m.Segments[i].Type == name {
+			return &m.Segments[i]
+		}
+	}
+	return nil
+}
+
+// GenerateACK generates an HL7v2 ACK response for the given message.
 func GenerateACK(msg *Message, ackCode string) ([]byte, error) {
 	if msg == nil {
 		return nil, fmt.Errorf("nil message")
 	}
 
-	msh := msg.Segments[0]
-	if msh.Name != "MSH" {
-		return nil, fmt.Errorf("message does not start with MSH")
+	msh := msg.Segment("MSH")
+	if msh == nil {
+		return nil, fmt.Errorf("message missing MSH segment")
 	}
 
-	sep := msg.Separators
-	if sep.Field == "" {
-		sep = Separators{Field: "|", Component: "^", Repetition: "~", Escape: "\\", Subcomponent: "&"}
+	switch ackCode {
+	case "AA", "AR", "AE":
+		// valid
+	default:
+		return nil, fmt.Errorf("invalid ACK code: %s", ackCode)
 	}
 
-	// Extract values from incoming MSH
-	// With proper MSH parsing, fields[1] is the separator, fields[2] is encoding chars.
-	sendingApp := safeField(msh, 3)
-	sendingFacility := safeField(msh, 4)
-	receivingApp := safeField(msh, 5)
-	receivingFacility := safeField(msh, 6)
-	controlID := safeField(msh, 10)
+	// Copy MSH-3, MSH-4, MSH-5, MSH-6 from original message.
+	msh3 := msh.Field(3)
+	msh4 := msh.Field(4)
+	msh5 := msh.Field(5)
+	msh6 := msh.Field(6)
+	msh10 := msh.Field(10)
+	msh11 := msh.Field(11)
+	msh12 := msh.Field(12)
 
-	// Build ACK MSH: swap sending/receiving apps and facilities
-	parts := []string{
-		"MSH",
-		sep.Component + sep.Repetition + sep.Escape + sep.Subcomponent,
-		receivingApp,
-		receivingFacility,
-		sendingApp,
-		sendingFacility,
-		"", // timestamp (optional)
-		"", // security (optional)
-		"ACK",
-		controlID,
-		"P",
-		"2.5",
+	now := time.Now().Format("20060102150405")
+
+	ackMSH := Segment{
+		Type: "MSH",
+		Fields: []string{
+			string(msg.FieldSeparator),
+			string([]byte{msg.ComponentSep, msg.RepetitionSep, msg.EscapeChar, msg.SubcomponentSep}),
+			msh3,
+			msh4,
+			msh5,
+			msh6,
+			now,
+			"",
+			"ACK",
+			generateControlID(),
+			msh11,
+			msh12,
+		},
 	}
-	ackMSH := strings.Join(parts, sep.Field)
 
-	// Build MSA
-	ackMSA := fmt.Sprintf("MSA%s%s%s%s", sep.Field, ackCode, sep.Field, controlID)
+	ackMSA := Segment{
+		Type: "MSA",
+		Fields: []string{
+			ackCode,
+			msh10,
+		},
+	}
 
-	ack := ackMSH + "\r" + ackMSA + "\r"
-	return []byte(ack), nil
+	ack := &Message{
+		Segments:        []Segment{ackMSH, ackMSA},
+		FieldSeparator:  msg.FieldSeparator,
+		ComponentSep:    msg.ComponentSep,
+		RepetitionSep:   msg.RepetitionSep,
+		EscapeChar:      msg.EscapeChar,
+		SubcomponentSep: msg.SubcomponentSep,
+	}
+
+	return ack.Serialize(), nil
 }
 
-func safeField(seg Segment, idx int) string {
-	if idx < len(seg.Fields) {
-		return seg.Fields[idx]
+func generateControlID() string {
+	return fmt.Sprintf("ACK-%d", time.Now().UnixNano())
+}
+
+// Serialize converts the message back to HL7v2 wire format.
+func (m *Message) Serialize() []byte {
+	var segments []string
+	for _, seg := range m.Segments {
+		segments = append(segments, seg.serialize(m.FieldSeparator))
 	}
-	return ""
+	return []byte(strings.Join(segments, "\r") + "\r")
+}
+
+func (s *Segment) serialize(sep byte) string {
+	if s.Type == "MSH" {
+		// MSH-1 is the separator itself and is stored in Fields[0].
+		parts := []string{s.Type}
+		parts = append(parts, s.Fields[1:]...)
+		return strings.Join(parts, s.Fields[0])
+	}
+	return s.Type + string(sep) + strings.Join(s.Fields, string(sep))
 }
