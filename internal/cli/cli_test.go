@@ -7,14 +7,31 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 )
 
+func repoRoot(t *testing.T) string {
+	_, file, _, _ := runtime.Caller(0)
+	dir := filepath.Dir(file)
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatal("could not find repo root (go.mod)")
+		}
+		dir = parent
+	}
+}
+
 func TestVersionOutput(t *testing.T) {
 	cmd := exec.Command("go", "run", "./cmd/ghega", "version")
-	cmd.Dir = "/workspace/rigs/69498905-1a69-47e8-a13d-117e9fd43b89/worktrees/convoy__phase-1-foundation-and-boundaries__4ff51cc7__gt__toast__a7521f57"
+	cmd.Dir = repoRoot(t)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("version command failed: %v\noutput: %s", err, out)
