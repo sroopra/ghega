@@ -42,9 +42,9 @@ validate-skills:
 	@echo "skills validation not yet implemented"
 
 .PHONY: test-generators
-## test-generators: placeholder for generator tests (to be wired later)
+## test-generators: run generator unit tests
 test-generators:
-	@echo "generator tests not yet implemented"
+	go test ./internal/cli/generate/... -v
 
 .PHONY: test-runtime-no-java-js
 ## test-runtime-no-java-js: verify runtime boundary (no Java / no JavaScript)

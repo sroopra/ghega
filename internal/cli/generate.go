@@ -2,7 +2,8 @@ package cli
 
 import (
 	"fmt"
-	"os"
+
+	"github.com/sroopra/ghega/internal/cli/generate"
 )
 
 func runGenerate(args []string) error {
@@ -12,9 +13,7 @@ func runGenerate(args []string) error {
 
 	switch args[0] {
 	case "channel":
-		fmt.Fprintln(os.Stderr, "not yet implemented")
-		os.Exit(1)
-		return nil
+		return generate.RunChannelGenerate(args[1:])
 	default:
 		return fmt.Errorf("unknown generate subcommand: %s", args[0])
 	}
