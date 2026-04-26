@@ -81,3 +81,13 @@ func (l *Logger) LogError(msg string, attrs ...slog.Attr) {
 	}
 	l.inner.Error(msg, args...)
 }
+
+// Inner returns the underlying *slog.Logger for use by subsystems that
+// need a standard logger. Callers must ensure no payload bytes are passed
+// through the returned logger.
+func (l *Logger) Inner() *slog.Logger {
+	if l == nil {
+		return slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+	return l.inner
+}
