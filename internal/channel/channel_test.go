@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,6 +21,25 @@ import (
 	"github.com/sroopra/ghega/pkg/messagestore"
 	"github.com/sroopra/ghega/pkg/mllp"
 )
+
+// safeBuffer wraps a bytes.Buffer with a sync.Mutex so it can be shared
+// safely between goroutines (e.g. the MLLP listener and the test).
+type safeBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (sb *safeBuffer) Write(p []byte) (int, error) {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.buf.Write(p)
+}
+
+func (sb *safeBuffer) String() string {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.buf.String()
+}
 
 // syntheticADT_A01 returns a clearly synthetic ADT^A01 message with no PHI.
 func syntheticADT_A01() []byte {
@@ -31,12 +51,8 @@ func syntheticADT_A01() []byte {
 
 func TestChannelEndToEnd_ADT_A01(t *testing.T) {
 	// Capture logs to verify no payload bytes are logged.
-	var logBuf bytes.Buffer
-	logHandler := slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug})
-	slogLogger := slog.New(logHandler)
+	var logBuf safeBuffer
 	phiLogger := logging.New(&logBuf, slog.LevelDebug)
-	// We share the same buffer; slogLogger is used for mllp listener internals.
-	_ = slogLogger
 
 	// 1. Start a test HTTP server that captures received payloads.
 	var receivedBody []byte
