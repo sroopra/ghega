@@ -49,3 +49,18 @@ export async function listChannels(): Promise<Channel[]> {
   const res = await fetch(`${API_BASE}/api/v1/channels`)
   return handleResponse<Channel[]>(res)
 }
+
+export interface Alert {
+  id: string
+  channel_id: string
+  severity: string
+  message: string
+  created_at: string
+  resolved_at?: string
+  acknowledged_at?: string
+}
+
+export async function listAlerts(): Promise<Alert[]> {
+  const res = await fetch(`${API_BASE}/api/v1/alerts`)
+  return handleResponse<Alert[]>(res)
+}
