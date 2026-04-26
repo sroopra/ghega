@@ -37,9 +37,9 @@ docker:
 	docker build -t $(IMAGE) .
 
 .PHONY: validate-skills
-## validate-skills: placeholder for skill validation (to be wired later)
+## validate-skills: validate all skills under ai/skills/
 validate-skills:
-	@echo "skills validation not yet implemented"
+	go run ./cmd/validate-skills
 
 .PHONY: test-generators
 ## test-generators: placeholder for generator tests (to be wired later)
