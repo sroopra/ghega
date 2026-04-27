@@ -39,6 +39,7 @@ Commands:
   version            Print version information
   serve              Start the HTTP server
   channel validate   Validate a channel definition
+  channel test       Run channel test fixtures
   message            Message management commands
   generate           Generate artifacts
 
