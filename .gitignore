@@ -1,4 +1,5 @@
 /ghega
+ghega.db
 ui/node_modules
 ui/dist
 ui/sbom.json
