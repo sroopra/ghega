@@ -33,6 +33,7 @@ type Envelope struct {
 	ChannelID  string
 	MessageID  string
 	ReceivedAt time.Time
+	Status     string
 	Ref        PayloadRef
 }
 
@@ -40,10 +41,11 @@ type Envelope struct {
 // and timestamps. Payload bytes never appear.
 func (e Envelope) String() string {
 	return fmt.Sprintf(
-		"Envelope{ChannelID:%s MessageID:%s ReceivedAt:%s Ref:%s}",
+		"Envelope{ChannelID:%s MessageID:%s ReceivedAt:%s Status:%s Ref:%s}",
 		e.ChannelID,
 		e.MessageID,
 		e.ReceivedAt.Format(time.RFC3339Nano),
+		e.Status,
 		e.Ref.String(),
 	)
 }

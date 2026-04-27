@@ -67,3 +67,18 @@ adr:
 	file="docs/adr/$${num}-$${slug}.md"; \
 	cp docs/adr/template.md "$$file"; \
 	echo "Created $$file"
+
+.PHONY: ui-build
+## ui-build: build the Ghega Console UI
+ui-build:
+	cd ui && npm install && npm run build
+
+.PHONY: ui-dev
+## ui-dev: run the Ghega Console UI dev server
+ui-dev:
+	cd ui && npm install && npm run dev
+
+.PHONY: ui-audit
+## ui-audit: run dependency audit on the UI
+ui-audit:
+	bash scripts/ui-dependency-audit.sh

@@ -47,6 +47,7 @@ func TestEnvelope_String_NeverContainsPayloadBytes(t *testing.T) {
 		ChannelID:  "channel-mllp-inbound",
 		MessageID:  "msg-uuid-1234",
 		ReceivedAt: time.Date(2024, 1, 15, 9, 30, 0, 0, time.UTC),
+		Status:     "received",
 		Ref:        ref,
 	}
 
@@ -69,6 +70,9 @@ func TestEnvelope_String_NeverContainsPayloadBytes(t *testing.T) {
 		}
 		if !strings.Contains(out, "2024-01-15T09:30:00Z") {
 			t.Errorf("Envelope string missing ReceivedAt: %q", out)
+		}
+		if !strings.Contains(out, "received") {
+			t.Errorf("Envelope string missing Status: %q", out)
 		}
 		if !strings.Contains(out, "store-abc-123") {
 			t.Errorf("Envelope string missing Ref.StorageID: %q", out)
@@ -94,6 +98,7 @@ func TestEnvelope_DoesNotHoldPayloadBytes(t *testing.T) {
 		ChannelID:  "ch-1",
 		MessageID:  "msg-1",
 		ReceivedAt: time.Now(),
+		Status:     "pending",
 		Ref: PayloadRef{
 			StorageID: "store-1",
 			Location:  "loc-1",
@@ -116,8 +121,8 @@ func TestPayloadRef_String_Format(t *testing.T) {
 func TestEnvelope_String_Format(t *testing.T) {
 	ref := PayloadRef{StorageID: "sid", Location: "loc"}
 	ts := time.Date(2024, 6, 1, 12, 0, 0, 0, time.UTC)
-	env := Envelope{ChannelID: "ch", MessageID: "mid", ReceivedAt: ts, Ref: ref}
-	want := "Envelope{ChannelID:ch MessageID:mid ReceivedAt:2024-06-01T12:00:00Z Ref:PayloadRef{StorageID:sid Location:loc}}"
+	env := Envelope{ChannelID: "ch", MessageID: "mid", ReceivedAt: ts, Status: "ok", Ref: ref}
+	want := "Envelope{ChannelID:ch MessageID:mid ReceivedAt:2024-06-01T12:00:00Z Status:ok Ref:PayloadRef{StorageID:sid Location:loc}}"
 	got := env.String()
 	if got != want {
 		t.Errorf("String() = %q, want %q", got, want)

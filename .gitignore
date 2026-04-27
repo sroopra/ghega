@@ -1,1 +1,5 @@
 /ghega
+ui/node_modules
+ui/dist
+ui/sbom.json
+ui/dependencies.txt
