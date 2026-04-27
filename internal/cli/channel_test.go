@@ -33,7 +33,6 @@ tests:
 		t.Fatalf("write channel: %v", err)
 	}
 
-	var stdout bytes.Buffer
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
@@ -43,7 +42,6 @@ tests:
 	w.Close()
 	os.Stdout = oldStdout
 	out, _ := io.ReadAll(r)
-	_ = stdout
 
 	if err != nil {
 		t.Fatalf("runChannelTest: %v", err)

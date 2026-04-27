@@ -27,7 +27,22 @@ func LoadTestFixtures(channelPath string, tests []Test) ([]TestFixture, error) {
 		input := tt.Input
 		if looksLikeFilePath(input) {
 			p := filepath.Join(channelDir, input)
-			data, err := os.ReadFile(p)
+			absP, err := filepath.Abs(p)
+			if err != nil {
+				return nil, fmt.Errorf("load fixture %q: resolve path %q: %w", tt.Name, p, err)
+			}
+			absChannelDir, err := filepath.Abs(channelDir)
+			if err != nil {
+				return nil, fmt.Errorf("load fixture %q: resolve channel dir %q: %w", tt.Name, channelDir, err)
+			}
+			rel, err := filepath.Rel(absChannelDir, absP)
+			if err != nil {
+				return nil, fmt.Errorf("load fixture %q: path %q is outside channel directory", tt.Name, p)
+			}
+			if strings.HasPrefix(rel, "..") {
+				return nil, fmt.Errorf("load fixture %q: path traversal detected in %q", tt.Name, p)
+			}
+			data, err := os.ReadFile(absP)
 			if err != nil {
 				return nil, fmt.Errorf("load fixture %q: read %q: %w", tt.Name, p, err)
 			}
