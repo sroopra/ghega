@@ -39,6 +39,9 @@ Commands:
   version            Print version information
   serve              Start the HTTP server
   channel validate   Validate a channel definition
+  channel deploy     Deploy a channel
+  channel diff       Compare local channel to deployed version
+  channel rollback   Roll back a channel to a previous revision
   message            Message management commands
   generate           Generate artifacts
 
