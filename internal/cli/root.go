@@ -40,6 +40,9 @@ Commands:
   serve              Start the HTTP server
   channel validate   Validate a channel definition
   channel test       Run channel test fixtures
+  channel deploy     Deploy a channel definition
+  channel diff       Compare local channel with deployed version
+  channel rollback   Roll back a channel to a previous revision
   message            Message management commands
   generate           Generate artifacts
 

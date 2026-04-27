@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sroopra/ghega/pkg/channelstore"
 )
 
 func TestChannelTest_AllPass(t *testing.T) {
@@ -182,5 +184,203 @@ tests:
 	}
 	if !strings.Contains(string(out), "PASS file-fixture") {
 		t.Errorf("expected PASS file-fixture, got:\n%s", string(out))
+	}
+}
+
+func TestChannelDeploy_CLI(t *testing.T) {
+	store := channelstore.NewInMemoryStore()
+	dir := t.TempDir()
+	chPath := filepath.Join(dir, "channel.yaml")
+	chYAML := `name: adt-a01
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+    transform: copy
+`
+	if err := os.WriteFile(chPath, []byte(chYAML), 0644); err != nil {
+		t.Fatalf("write channel: %v", err)
+	}
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	err := runChannelDeployWithStore(chPath, store)
+
+	w.Close()
+	os.Stdout = oldStdout
+	out, _ := io.ReadAll(r)
+
+	if err != nil {
+		t.Fatalf("runChannelDeployWithStore: %v", err)
+	}
+	if !strings.Contains(string(out), "Deployed adt-a01 revision 1 hash") {
+		t.Errorf("expected deploy output, got:\n%s", string(out))
+	}
+}
+
+func TestChannelDiff_CLI_Identical(t *testing.T) {
+	store := channelstore.NewInMemoryStore()
+	dir := t.TempDir()
+	chPath := filepath.Join(dir, "channel.yaml")
+	chYAML := `name: adt-a01
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+    transform: copy
+`
+	if err := os.WriteFile(chPath, []byte(chYAML), 0644); err != nil {
+		t.Fatalf("write channel: %v", err)
+	}
+
+	if err := runChannelDeployWithStore(chPath, store); err != nil {
+		t.Fatalf("deploy: %v", err)
+	}
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	err := runChannelDiffWithStore(chPath, store)
+
+	w.Close()
+	os.Stdout = oldStdout
+	out, _ := io.ReadAll(r)
+
+	if err != nil {
+		t.Fatalf("runChannelDiffWithStore: %v", err)
+	}
+	if !strings.Contains(string(out), "No changes") {
+		t.Errorf("expected 'No changes', got:\n%s", string(out))
+	}
+}
+
+func TestChannelDiff_CLI_Different(t *testing.T) {
+	store := channelstore.NewInMemoryStore()
+	dir := t.TempDir()
+	chPath := filepath.Join(dir, "channel.yaml")
+	chYAML := `name: adt-a01
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+    transform: copy
+`
+	if err := os.WriteFile(chPath, []byte(chYAML), 0644); err != nil {
+		t.Fatalf("write channel: %v", err)
+	}
+
+	if err := runChannelDeployWithStore(chPath, store); err != nil {
+		t.Fatalf("deploy: %v", err)
+	}
+
+	chYAML2 := `name: adt-a01
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_id
+    transform: copy
+`
+	if err := os.WriteFile(chPath, []byte(chYAML2), 0644); err != nil {
+		t.Fatalf("write channel 2: %v", err)
+	}
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	err := runChannelDiffWithStore(chPath, store)
+
+	w.Close()
+	os.Stdout = oldStdout
+	out, _ := io.ReadAll(r)
+
+	if err != nil {
+		t.Fatalf("runChannelDiffWithStore: %v", err)
+	}
+	if !strings.Contains(string(out), "Changes detected") {
+		t.Errorf("expected 'Changes detected', got:\n%s", string(out))
+	}
+}
+
+func TestChannelRollback_CLI(t *testing.T) {
+	store := channelstore.NewInMemoryStore()
+	dir := t.TempDir()
+	chPath := filepath.Join(dir, "channel.yaml")
+	chYAML := `name: adt-a01
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+    transform: copy
+`
+	if err := os.WriteFile(chPath, []byte(chYAML), 0644); err != nil {
+		t.Fatalf("write channel: %v", err)
+	}
+
+	if err := runChannelDeployWithStore(chPath, store); err != nil {
+		t.Fatalf("first deploy: %v", err)
+	}
+
+	chYAML2 := `name: adt-a01
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_id
+    transform: copy
+`
+	if err := os.WriteFile(chPath, []byte(chYAML2), 0644); err != nil {
+		t.Fatalf("write channel 2: %v", err)
+	}
+
+	if err := runChannelDeployWithStore(chPath, store); err != nil {
+		t.Fatalf("second deploy: %v", err)
+	}
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	err := runChannelRollbackWithStore("adt-a01", "", store)
+
+	w.Close()
+	os.Stdout = oldStdout
+	out, _ := io.ReadAll(r)
+
+	if err != nil {
+		t.Fatalf("runChannelRollbackWithStore: %v", err)
+	}
+	if !strings.Contains(string(out), "Rolled back channel \"adt-a01\" to previous revision") {
+		t.Errorf("expected rollback output, got:\n%s", string(out))
+	}
+}
+
+func TestChannelSubcommand_Unknown(t *testing.T) {
+	err := runChannel([]string{"unknown"})
+	if err == nil {
+		t.Fatal("expected error for unknown subcommand")
+	}
+	if !strings.Contains(err.Error(), "unknown channel subcommand") {
+		t.Errorf("expected 'unknown channel subcommand' error, got: %v", err)
 	}
 }
