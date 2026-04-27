@@ -16,12 +16,15 @@ func captureStdout(t *testing.T, fn func() error) (string, error) {
 		t.Fatalf("os.Pipe: %v", err)
 	}
 	os.Stdout = w
+	defer func() {
+		os.Stdout = old
+		w.Close()
+		r.Close()
+	}()
 
 	fnErr := fn()
 
 	w.Close()
-	os.Stdout = old
-
 	out, _ := io.ReadAll(r)
 	return string(out), fnErr
 }

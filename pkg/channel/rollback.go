@@ -31,9 +31,5 @@ func Rollback(channelName string, toHash string, store channelstore.ChannelStore
 		return fmt.Errorf("rollback channel: %w", err)
 	}
 
-	if err := store.SaveDeploymentAudit(ctx, channelName, toHash, "rollback"); err != nil {
-		return fmt.Errorf("save deployment audit: %w", err)
-	}
-
 	return nil
 }

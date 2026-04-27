@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/sroopra/ghega/pkg/channelstore"
 )
@@ -28,7 +29,11 @@ func DiffLocal(channelPath string, store channelstore.ChannelStore) (*DiffResult
 
 	ch, verrs := ValidateYAML(data)
 	if len(verrs) > 0 {
-		return nil, fmt.Errorf("validation failed: %d errors", len(verrs))
+		msgs := make([]string, len(verrs))
+		for i, v := range verrs {
+			msgs[i] = fmt.Sprintf("%s: %s", v.Field, v.Message)
+		}
+		return nil, fmt.Errorf("validation failed: %s", strings.Join(msgs, "; "))
 	}
 
 	localHash, err := HashChannel(ch)
