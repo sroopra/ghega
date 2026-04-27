@@ -21,6 +21,8 @@ func Execute(args []string) error {
 		return runMessage(args[1:])
 	case "generate":
 		return runGenerate(args[1:])
+	case "watch":
+		return runWatch(args[1:])
 	case "--help", "-h", "help":
 		printUsage()
 		return nil
@@ -40,8 +42,12 @@ Commands:
   serve              Start the HTTP server
   channel validate   Validate a channel definition
   channel test       Run channel test fixtures
+  channel deploy     Deploy a channel to the store
+  channel diff       Compare local channel with deployed version
+  channel rollback   Rollback a channel to a previous revision
   message            Message management commands
   generate           Generate artifacts
+  watch <directory>  Watch directory for channel.yaml changes
 
 Use "ghega <command> --help" for more information about a command.`)
 }
