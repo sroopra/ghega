@@ -40,17 +40,10 @@ func Deploy(channelPath string, store channelstore.ChannelStore) (*DeployResult,
 
 	ctx := context.Background()
 
-	var previousHash string
-	current, err := store.GetChannel(ctx, ch.Name)
-	if err == nil {
-		previousHash = current.Hash
-	} else if _, ok := err.(*channelstore.ErrNotFound); !ok {
-		return nil, fmt.Errorf("get current channel: %w", err)
-	}
-
 	// Idempotency check: if the hash already exists anywhere in history, no-op.
 	existing, err := store.GetChannelRevision(ctx, ch.Name, hash)
 	if err == nil {
+		previousHash := previousHashFromRevisions(ctx, store, ch.Name, hash)
 		return &DeployResult{
 			Name:         ch.Name,
 			Hash:         hash,
@@ -75,10 +68,26 @@ func Deploy(channelPath string, store channelstore.ChannelStore) (*DeployResult,
 		return nil, fmt.Errorf("save deployment audit: %w", err)
 	}
 
+	previousHash := previousHashFromRevisions(ctx, store, ch.Name, hash)
 	return &DeployResult{
 		Name:         ch.Name,
 		Hash:         hash,
 		Revision:     saved.Revision,
 		PreviousHash: previousHash,
 	}, nil
+}
+
+// previousHashFromRevisions returns the hash of the revision immediately
+// before the one matching the given hash, or empty string if none exists.
+func previousHashFromRevisions(ctx context.Context, store channelstore.ChannelStore, name, hash string) string {
+	revs, err := store.ListChannelRevisions(ctx, name)
+	if err != nil {
+		return ""
+	}
+	for i, r := range revs {
+		if r.Hash == hash && i+1 < len(revs) {
+			return revs[i+1].Hash
+		}
+	}
+	return ""
 }
