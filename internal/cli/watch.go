@@ -3,8 +3,10 @@ package cli
 import (
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/sroopra/ghega/pkg/channel"
@@ -23,12 +25,19 @@ func runWatch(args []string) error {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+
 	for {
 		select {
 		case <-ticker.C:
 			if err := scanAndProcess(dir, mtimes); err != nil {
 				fmt.Fprintf(os.Stderr, "watch error: %v\n", err)
 			}
+		case <-sigCh:
+			fmt.Println("\nReceived interrupt signal. Stopping watch.")
+			return nil
 		}
 	}
 }
