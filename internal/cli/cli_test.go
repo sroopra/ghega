@@ -82,14 +82,64 @@ func TestHealthzEndpoint(t *testing.T) {
 	}
 }
 
-func TestChannelValidateExits1(t *testing.T) {
-	if os.Getenv("BE_TEST_CHANNEL_VALIDATE") == "1" {
-		_ = runChannel([]string{"validate", "/tmp/fake-channel.yaml"})
+func TestChannelValidateValidFile(t *testing.T) {
+	if os.Getenv("BE_TEST_CHANNEL_VALIDATE_VALID") == "1" {
+		_ = runChannel([]string{"validate", os.Getenv("CHANNEL_PATH")})
 		return
 	}
 
-	cmd := exec.Command(os.Args[0], "-test.run=TestChannelValidateExits1")
-	cmd.Env = append(os.Environ(), "BE_TEST_CHANNEL_VALIDATE=1")
+	tmpDir := t.TempDir()
+	validYAML := `name: test-channel
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+`
+	path := filepath.Join(tmpDir, "channel.yaml")
+	if err := os.WriteFile(path, []byte(validYAML), 0644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run=TestChannelValidateValidFile")
+	cmd.Env = append(os.Environ(), "BE_TEST_CHANNEL_VALIDATE_VALID=1", "CHANNEL_PATH="+path)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+
+	if err != nil {
+		t.Fatalf("expected exit code 0, got error: %v (stderr: %s)", err, stderr.String())
+	}
+
+	if !strings.Contains(stdout.String(), "channel is valid") {
+		t.Errorf("expected stdout to contain 'channel is valid', got: %s", stdout.String())
+	}
+}
+
+func TestChannelValidateInvalidFile(t *testing.T) {
+	if os.Getenv("BE_TEST_CHANNEL_VALIDATE_INVALID") == "1" {
+		_ = runChannel([]string{"validate", os.Getenv("CHANNEL_PATH")})
+		return
+	}
+
+	tmpDir := t.TempDir()
+	invalidYAML := `name: INVALID_NAME
+source:
+  type: unknown
+destination:
+  type: http
+mappings: []
+`
+	path := filepath.Join(tmpDir, "channel.yaml")
+	if err := os.WriteFile(path, []byte(invalidYAML), 0644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run=TestChannelValidateInvalidFile")
+	cmd.Env = append(os.Environ(), "BE_TEST_CHANNEL_VALIDATE_INVALID=1", "CHANNEL_PATH="+path)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	err := cmd.Run()
@@ -102,8 +152,33 @@ func TestChannelValidateExits1(t *testing.T) {
 		t.Fatalf("expected exit code 1, got 0 (stderr: %s)", stderr.String())
 	}
 
-	if !strings.Contains(stderr.String(), "not yet implemented") {
-		t.Errorf("expected stderr to contain 'not yet implemented', got: %s", stderr.String())
+	if !strings.Contains(stderr.String(), "name:") {
+		t.Errorf("expected stderr to contain name validation error, got: %s", stderr.String())
+	}
+}
+
+func TestChannelValidateMissingFile(t *testing.T) {
+	if os.Getenv("BE_TEST_CHANNEL_VALIDATE_MISSING") == "1" {
+		_ = runChannel([]string{"validate", "/tmp/nonexistent-channel.yaml"})
+		return
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run=TestChannelValidateMissingFile")
+	cmd.Env = append(os.Environ(), "BE_TEST_CHANNEL_VALIDATE_MISSING=1")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	err := cmd.Run()
+
+	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+		// expected
+	} else if err != nil {
+		t.Fatalf("unexpected error: %v (stderr: %s)", err, stderr.String())
+	} else {
+		t.Fatalf("expected exit code 1, got 0 (stderr: %s)", stderr.String())
+	}
+
+	if !strings.Contains(stderr.String(), "error reading file") {
+		t.Errorf("expected stderr to contain 'error reading file', got: %s", stderr.String())
 	}
 }
 

@@ -1,0 +1,36 @@
+package channel
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/sroopra/ghega/pkg/channelstore"
+)
+
+// Rollback reverts a channel to a specific revision hash. If toHash is empty,
+// the second-most-recent revision is used automatically.
+func Rollback(channelName, toHash string, store channelstore.ChannelStore) error {
+	ctx := context.Background()
+
+	if toHash == "" {
+		revs, err := store.ListChannelRevisions(ctx, channelName)
+		if err != nil {
+			return fmt.Errorf("list revisions: %w", err)
+		}
+		if len(revs) < 2 {
+			return fmt.Errorf("cannot rollback: channel %q has fewer than 2 revisions", channelName)
+		}
+		toHash = revs[1].Hash
+	}
+
+	// Verify the hash exists.
+	if _, err := store.GetChannelRevision(ctx, channelName, toHash); err != nil {
+		return fmt.Errorf("verify revision: %w", err)
+	}
+
+	if err := store.RollbackChannel(ctx, channelName, toHash); err != nil {
+		return fmt.Errorf("rollback channel: %w", err)
+	}
+
+	return nil
+}
