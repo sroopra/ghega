@@ -43,8 +43,7 @@ func runChannelValidate(args []string) error {
 	path := fs.Arg(0)
 	data, err := os.ReadFile(path)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error reading file: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("error reading file: %w", err)
 	}
 
 	ch, valErrs := channel.ValidateYAML(data)
@@ -53,10 +52,11 @@ func runChannelValidate(args []string) error {
 	}
 
 	if len(valErrs) > 0 {
+		var msgs []string
 		for _, e := range valErrs {
-			fmt.Fprintf(os.Stderr, "%s: %s\n", e.Field, e.Message)
+			msgs = append(msgs, fmt.Sprintf("%s: %s", e.Field, e.Message))
 		}
-		os.Exit(1)
+		return fmt.Errorf("validation failed:\n%s", strings.Join(msgs, "\n"))
 	}
 
 	fmt.Println("channel is valid")
@@ -83,10 +83,11 @@ func runChannelTest(args []string) error {
 		valErrs = append(valErrs, channel.ValidatePolicies(ch)...)
 	}
 	if len(valErrs) > 0 {
+		var msgs []string
 		for _, e := range valErrs {
-			fmt.Fprintf(os.Stderr, "%s: %s\n", e.Field, e.Message)
+			msgs = append(msgs, fmt.Sprintf("%s: %s", e.Field, e.Message))
 		}
-		os.Exit(1)
+		return fmt.Errorf("validation failed:\n%s", strings.Join(msgs, "\n"))
 	}
 
 	fixtures, err := channel.LoadTestFixtures(channelPath, ch.Tests)
@@ -133,7 +134,7 @@ func runChannelTest(args []string) error {
 	}
 
 	if !allPassed {
-		os.Exit(1)
+		return fmt.Errorf("one or more tests failed")
 	}
 
 	return nil
