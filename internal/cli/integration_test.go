@@ -124,11 +124,22 @@ func TestEndToEnd_EditToTestUnder5Seconds(t *testing.T) {
 	}
 
 	// l. Verify the rolled-back channel matches the original.
+	currentRecord, err := store.GetChannel(ctx, "e2e-demo")
+	if err != nil {
+		t.Fatalf("get current channel after rollback: %v", err)
+	}
+	if currentRecord.Hash != originalRecord.Hash {
+		t.Errorf("current hash = %q, want %q", currentRecord.Hash, originalRecord.Hash)
+	}
+	if string(currentRecord.YAML) != string(originalData) {
+		t.Error("rolled-back YAML does not match original")
+	}
+
 	rolledBackRecord, err := store.GetChannelRevision(ctx, "e2e-demo", originalRecord.Hash)
 	if err != nil {
 		t.Fatalf("get rolled-back revision: %v", err)
 	}
 	if string(rolledBackRecord.YAML) != string(originalData) {
-		t.Error("rolled-back YAML does not match original")
+		t.Error("rolled-back revision YAML does not match original")
 	}
 }

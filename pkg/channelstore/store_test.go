@@ -137,6 +137,15 @@ func testStore(t *testing.T, store ChannelStore) {
 			t.Fatalf("RollbackChannel failed: %v", err)
 		}
 
+		// Verify rollback updated the current channel.
+		rec, err := store.GetChannel(ctx, "ch-adt")
+		if err != nil {
+			t.Fatalf("GetChannel after rollback failed: %v", err)
+		}
+		if rec.Hash != "hash-a" {
+			t.Errorf("Hash = %q, want %q", rec.Hash, "hash-a")
+		}
+
 		audits, err := store.ListDeploymentAudit(ctx, "ch-adt")
 		if err != nil {
 			t.Fatalf("ListDeploymentAudit failed: %v", err)

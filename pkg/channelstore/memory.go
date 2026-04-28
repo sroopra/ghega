@@ -128,12 +128,46 @@ func (s *InMemoryStore) ListChannelRevisions(_ context.Context, name string) ([]
 	return out, nil
 }
 
-// RollbackChannel verifies the hash exists and records a rollback audit entry.
+// RollbackChannel verifies the hash exists, creates a new current revision
+// pointing to the rolled-back hash, and records a rollback audit entry.
 func (s *InMemoryStore) RollbackChannel(ctx context.Context, name, hash string) error {
-	_, err := s.GetChannelRevision(ctx, name, hash)
-	if err != nil {
-		return err
+	s.mu.Lock()
+
+	revs, ok := s.channels[name]
+	if !ok {
+		s.mu.Unlock()
+		return &ErrNotFound{Name: name, Hash: hash}
 	}
+
+	var target *ChannelRecord
+	for i := range revs {
+		if revs[i].Hash == hash {
+			cp := revs[i]
+			target = &cp
+			break
+		}
+	}
+	if target == nil {
+		s.mu.Unlock()
+		return &ErrNotFound{Name: name, Hash: hash}
+	}
+
+	maxRev := 0
+	for _, r := range revs {
+		if r.Revision > maxRev {
+			maxRev = r.Revision
+		}
+	}
+
+	s.channels[name] = append(revs, ChannelRecord{
+		Name:       name,
+		Hash:       hash,
+		YAML:       append([]byte(nil), target.YAML...),
+		Revision:   maxRev + 1,
+		DeployedAt: time.Now().UTC(),
+	})
+	s.mu.Unlock()
+
 	return s.SaveDeploymentAudit(ctx, name, hash, "rollback")
 }
 
