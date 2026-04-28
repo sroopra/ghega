@@ -3,10 +3,12 @@ package server
 
 import (
 	"encoding/json"
+	"io/fs"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/sroopra/ghega"
 	"github.com/sroopra/ghega/internal/alerts"
 	"github.com/sroopra/ghega/pkg/messagestore"
 	"github.com/sroopra/ghega/pkg/payloadref"
@@ -68,8 +70,12 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", wrapped))
 	mux.HandleFunc("/healthz", s.handleHealthz)
 
-	fs := http.FileServer(http.Dir("ui/dist"))
-	mux.Handle("/", fs)
+	sub, err := fs.Sub(ghega.UIFS, "ui/dist")
+	if err != nil {
+		panic("ui/dist not embedded: " + err.Error())
+	}
+	fileServer := http.FileServer(http.FS(sub))
+	mux.Handle("/", fileServer)
 
 	return mux
 }

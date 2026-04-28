@@ -83,11 +83,6 @@ func TestHealthzEndpoint(t *testing.T) {
 }
 
 func TestChannelValidateValidFile(t *testing.T) {
-	if os.Getenv("BE_TEST_CHANNEL_VALIDATE_VALID") == "1" {
-		_ = runChannel([]string{"validate", os.Getenv("CHANNEL_PATH")})
-		return
-	}
-
 	tmpDir := t.TempDir()
 	validYAML := `name: test-channel
 source:
@@ -103,28 +98,26 @@ mappings:
 		t.Fatalf("write file: %v", err)
 	}
 
-	cmd := exec.Command(os.Args[0], "-test.run=TestChannelValidateValidFile")
-	cmd.Env = append(os.Environ(), "BE_TEST_CHANNEL_VALIDATE_VALID=1", "CHANNEL_PATH="+path)
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err := cmd.Run()
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	err := runChannelValidate([]string{path})
+
+	w.Close()
+	os.Stdout = oldStdout
+	out, _ := io.ReadAll(r)
 
 	if err != nil {
-		t.Fatalf("expected exit code 0, got error: %v (stderr: %s)", err, stderr.String())
+		t.Fatalf("expected no error, got: %v", err)
 	}
 
-	if !strings.Contains(stdout.String(), "channel is valid") {
-		t.Errorf("expected stdout to contain 'channel is valid', got: %s", stdout.String())
+	if !strings.Contains(string(out), "channel is valid") {
+		t.Errorf("expected stdout to contain 'channel is valid', got: %s", string(out))
 	}
 }
 
 func TestChannelValidateInvalidFile(t *testing.T) {
-	if os.Getenv("BE_TEST_CHANNEL_VALIDATE_INVALID") == "1" {
-		_ = runChannel([]string{"validate", os.Getenv("CHANNEL_PATH")})
-		return
-	}
-
 	tmpDir := t.TempDir()
 	invalidYAML := `name: INVALID_NAME
 source:
@@ -138,47 +131,26 @@ mappings: []
 		t.Fatalf("write file: %v", err)
 	}
 
-	cmd := exec.Command(os.Args[0], "-test.run=TestChannelValidateInvalidFile")
-	cmd.Env = append(os.Environ(), "BE_TEST_CHANNEL_VALIDATE_INVALID=1", "CHANNEL_PATH="+path)
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	err := cmd.Run()
+	err := runChannelValidate([]string{path})
 
-	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-		// expected
-	} else if err != nil {
-		t.Fatalf("unexpected error: %v (stderr: %s)", err, stderr.String())
-	} else {
-		t.Fatalf("expected exit code 1, got 0 (stderr: %s)", stderr.String())
+	if err == nil {
+		t.Fatalf("expected error, got nil")
 	}
 
-	if !strings.Contains(stderr.String(), "name:") {
-		t.Errorf("expected stderr to contain name validation error, got: %s", stderr.String())
+	if !strings.Contains(err.Error(), "name:") {
+		t.Errorf("expected error to contain name validation error, got: %s", err.Error())
 	}
 }
 
 func TestChannelValidateMissingFile(t *testing.T) {
-	if os.Getenv("BE_TEST_CHANNEL_VALIDATE_MISSING") == "1" {
-		_ = runChannel([]string{"validate", "/tmp/nonexistent-channel.yaml"})
-		return
+	err := runChannelValidate([]string{"/tmp/nonexistent-channel.yaml"})
+
+	if err == nil {
+		t.Fatalf("expected error, got nil")
 	}
 
-	cmd := exec.Command(os.Args[0], "-test.run=TestChannelValidateMissingFile")
-	cmd.Env = append(os.Environ(), "BE_TEST_CHANNEL_VALIDATE_MISSING=1")
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-
-	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-		// expected
-	} else if err != nil {
-		t.Fatalf("unexpected error: %v (stderr: %s)", err, stderr.String())
-	} else {
-		t.Fatalf("expected exit code 1, got 0 (stderr: %s)", stderr.String())
-	}
-
-	if !strings.Contains(stderr.String(), "error reading file") {
-		t.Errorf("expected stderr to contain 'error reading file', got: %s", stderr.String())
+	if !strings.Contains(err.Error(), "error reading file") {
+		t.Errorf("expected error to contain 'error reading file', got: %s", err.Error())
 	}
 }
 

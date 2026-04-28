@@ -128,6 +128,21 @@ tr:last-child td {
   color: #991b1b;
 }
 
+.status-badge.critical {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-badge.warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-badge.info {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
 .empty-state {
   color: var(--color-text-muted);
   font-style: italic;

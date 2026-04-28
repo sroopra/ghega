@@ -356,6 +356,33 @@ func TestListAlerts(t *testing.T) {
 	}
 }
 
+func TestRootServesHTML(t *testing.T) {
+	store := messagestore.NewInMemoryStore()
+	srv := New(store, newTestAlertStore())
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/")
+	if err != nil {
+		t.Fatalf("root request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	contentType := resp.Header.Get("Content-Type")
+	if !strings.Contains(contentType, "text/html") {
+		t.Errorf("Content-Type = %q, want text/html", contentType)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "<!DOCTYPE html>") && !strings.Contains(string(body), "<html") {
+		t.Errorf("body does not contain HTML: %s", body)
+	}
+}
+
 func TestAPIRoutesTakePrecedenceOverStaticFiles(t *testing.T) {
 	store := messagestore.NewInMemoryStore()
 	srv := New(store, newTestAlertStore())
