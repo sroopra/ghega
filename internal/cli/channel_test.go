@@ -2,12 +2,15 @@ package cli
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sroopra/ghega/pkg/channel"
 )
 
 func TestChannelTest_AllPass(t *testing.T) {
@@ -182,5 +185,154 @@ tests:
 	}
 	if !strings.Contains(string(out), "PASS file-fixture") {
 		t.Errorf("expected PASS file-fixture, got:\n%s", string(out))
+	}
+}
+
+func TestChannelRollback_WithHash(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+	chPath := filepath.Join(dir, "channel.yaml")
+
+	chYAML1 := `name: adt-a01
+description: version 1
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+    transform: copy
+`
+	if err := os.WriteFile(chPath, []byte(chYAML1), 0644); err != nil {
+		t.Fatalf("write channel: %v", err)
+	}
+
+	t.Setenv("GHEGA_DATABASE_URL", dbPath)
+
+	if err := runChannelDeploy([]string{chPath}); err != nil {
+		t.Fatalf("first deploy: %v", err)
+	}
+
+	chYAML2 := `name: adt-a01
+description: version 2
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+    transform: copy
+`
+	if err := os.WriteFile(chPath, []byte(chYAML2), 0644); err != nil {
+		t.Fatalf("write channel v2: %v", err)
+	}
+
+	if err := runChannelDeploy([]string{chPath}); err != nil {
+		t.Fatalf("second deploy: %v", err)
+	}
+
+	ch1, valErrs := channel.ValidateYAML([]byte(chYAML1))
+	if len(valErrs) > 0 {
+		t.Fatalf("validate yaml: %v", valErrs)
+	}
+	hash1, err := channel.HashChannel(ch1)
+	if err != nil {
+		t.Fatalf("hash channel: %v", err)
+	}
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	err = runChannelRollback([]string{"adt-a01", "--to", hash1})
+
+	w.Close()
+	os.Stdout = oldStdout
+	out, _ := io.ReadAll(r)
+
+	if err != nil {
+		t.Fatalf("rollback with hash: %v", err)
+	}
+
+	expected := fmt.Sprintf("Rolled back adt-a01 to hash %s", hash1)
+	if !strings.Contains(string(out), expected) {
+		t.Errorf("expected %q in output, got:\n%s", expected, string(out))
+	}
+}
+
+func TestChannelRollback_Auto(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+	chPath := filepath.Join(dir, "channel.yaml")
+
+	chYAML1 := `name: adt-a01
+description: version 1
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+    transform: copy
+`
+	chYAML2 := `name: adt-a01
+description: version 2
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+    transform: copy
+`
+
+	if err := os.WriteFile(chPath, []byte(chYAML1), 0644); err != nil {
+		t.Fatalf("write channel: %v", err)
+	}
+
+	t.Setenv("GHEGA_DATABASE_URL", dbPath)
+
+	if err := runChannelDeploy([]string{chPath}); err != nil {
+		t.Fatalf("first deploy: %v", err)
+	}
+
+	if err := os.WriteFile(chPath, []byte(chYAML2), 0644); err != nil {
+		t.Fatalf("write channel v2: %v", err)
+	}
+
+	if err := runChannelDeploy([]string{chPath}); err != nil {
+		t.Fatalf("second deploy: %v", err)
+	}
+
+	ch1, valErrs := channel.ValidateYAML([]byte(chYAML1))
+	if len(valErrs) > 0 {
+		t.Fatalf("validate yaml: %v", valErrs)
+	}
+	hash1, err := channel.HashChannel(ch1)
+	if err != nil {
+		t.Fatalf("hash channel: %v", err)
+	}
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	err = runChannelRollback([]string{"adt-a01"})
+
+	w.Close()
+	os.Stdout = oldStdout
+	out, _ := io.ReadAll(r)
+
+	if err != nil {
+		t.Fatalf("auto rollback: %v", err)
+	}
+
+	expected := fmt.Sprintf("Rolled back adt-a01 to hash %s", hash1)
+	if !strings.Contains(string(out), expected) {
+		t.Errorf("expected %q in output, got:\n%s", expected, string(out))
 	}
 }
