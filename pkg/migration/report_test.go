@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/sroopra/ghega/pkg/channel"
-	"github.com/sroopra/ghega/pkg/mirthxml"
 )
 
 func TestGenerateMigrationReports_SingleChannel(t *testing.T) {
@@ -269,12 +268,6 @@ func TestGenerateMigrationReports_NoPHI(t *testing.T) {
 func TestWriteChannelYAML(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "channel.yaml")
-
-	ch := mirthxml.Channel{
-		ID:   "test-id",
-		Name: "test-channel",
-	}
-	_ = ch
 
 	// Actually test with a real Ghega channel.
 	gch := channel.Channel{

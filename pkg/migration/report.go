@@ -177,6 +177,9 @@ func processChannel(mch *mirthxml.Channel, outDir string) (*ChannelMigrationRepo
 	}
 
 	channelDir := filepath.Join(outDir, report.ChannelName)
+	if _, err := os.Stat(channelDir); err == nil {
+		return nil, fmt.Errorf("channel directory %q already exists (possible name collision)", channelDir)
+	}
 	if err := os.MkdirAll(channelDir, 0755); err != nil {
 		return nil, fmt.Errorf("create channel directory: %w", err)
 	}

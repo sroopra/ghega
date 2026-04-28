@@ -57,7 +57,11 @@ func runMigrateMirth(args []string) error {
 // slice so that flag.FlagSet.Parse can locate them even when positional
 // arguments are given first.
 func reorderFlags(args []string) []string {
-	known := map[string]bool{"--out": true, "--samples": true, "--expected": true}
+	known := map[string]bool{
+		"--out": true, "-out": true,
+		"--samples": true, "-samples": true,
+		"--expected": true, "-expected": true,
+	}
 	var flags []string
 	var positional []string
 	for i := 0; i < len(args); i++ {
