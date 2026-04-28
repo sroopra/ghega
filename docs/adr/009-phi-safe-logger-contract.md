@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -10,11 +10,14 @@ Ghega processes healthcare messages that may contain Protected Health Informatio
 
 ## Decision
 
-TBD
+The Ghega logger contract prohibits emitting payload bytes in any log output. `Envelope.String()` and `PayloadRef.String()` must never include raw payload data. All log methods in `internal/logging/` accept only metadata fields (message IDs, channel IDs, status codes). Using `fmt.Printf` or `slog` with `Envelope` or `PayloadRef` directly is forbidden. Tests prove that synthetic payload bytes never appear in captured log output.
 
 ## Consequences
 
-TBD
+- Log analysis and alerting are safe to run without PHI scrubbing pipelines.
+- Developers must be trained to avoid passing envelope or payload objects directly to formatters.
+- Any new connector or parser must include log-safety tests.
+- Violations are caught at the type level (String() contract) and by test assertions.
 
 ## Alternatives considered
 

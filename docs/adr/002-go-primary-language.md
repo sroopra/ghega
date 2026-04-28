@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -10,11 +10,14 @@ Ghega needs a single primary language for the core engine that offers strong con
 
 ## Decision
 
-TBD
+Go is the primary implementation language for the Ghega engine runtime. All engine code, connectors, parsers, stores, and message-processing logic are written in Go.
 
 ## Consequences
 
-TBD
+- Fast compile times and small static binaries enable rapid deployment.
+- Goroutines and channels provide a natural concurrency model for I/O-bound integration work.
+- The Go ecosystem in healthcare is smaller than Java's, so custom parsers and connectors must be built.
+- Hiring pool is different from traditional Mirth/Java shops; training may be required.
 
 ## Alternatives considered
 

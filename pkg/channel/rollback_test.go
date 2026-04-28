@@ -19,20 +19,31 @@ func TestRollback_ToSpecificHash(t *testing.T) {
 
 	ch.Description = "updated"
 	path = writeTestChannel(t, dir, "channel.yaml", ch)
-	if _, err := Deploy(path, store); err != nil {
+	second, err := Deploy(path, store)
+	if err != nil {
 		t.Fatalf("second Deploy failed: %v", err)
+	}
+
+	if second.Hash == first.Hash {
+		t.Fatal("expected different hashes for different descriptions")
 	}
 
 	if err := Rollback("rollback-test", first.Hash, store); err != nil {
 		t.Fatalf("Rollback failed: %v", err)
 	}
 
+	// Verify GetChannel now returns the first hash (rolled-back revision).
+	current, err := store.GetChannel(nil, "rollback-test")
+	if err != nil {
+		t.Fatalf("GetChannel failed: %v", err)
+	}
+	if current.Hash != first.Hash {
+		t.Errorf("after rollback GetChannel hash = %q, want %q", current.Hash, first.Hash)
+	}
+
 	audits, err := store.ListDeploymentAudit(nil, "rollback-test")
 	if err != nil {
 		t.Fatalf("ListDeploymentAudit failed: %v", err)
-	}
-	if len(audits) != 3 {
-		t.Fatalf("len(audits) = %d, want 3", len(audits))
 	}
 	found := false
 	for _, a := range audits {
@@ -67,7 +78,15 @@ func TestRollback_AutoHash(t *testing.T) {
 		t.Fatalf("Rollback failed: %v", err)
 	}
 
-	// Verify it rolled back to the first hash.
+	// Verify GetChannel now returns the first hash.
+	current, err := store.GetChannel(nil, "rollback-test")
+	if err != nil {
+		t.Fatalf("GetChannel failed: %v", err)
+	}
+	if current.Hash != first.Hash {
+		t.Errorf("after auto-rollback GetChannel hash = %q, want %q", current.Hash, first.Hash)
+	}
+
 	audits, err := store.ListDeploymentAudit(nil, "rollback-test")
 	if err != nil {
 		t.Fatalf("ListDeploymentAudit failed: %v", err)
@@ -80,7 +99,7 @@ func TestRollback_AutoHash(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Errorf("expected auto-rollback to hash %q", first.Hash)
+		t.Errorf("expected auto-rollback audit for hash %q", first.Hash)
 	}
 }
 

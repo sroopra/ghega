@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -10,11 +10,14 @@ Ghega targets healthcare integration teams that have outgrown Mirth Connect (Nex
 
 ## Decision
 
-TBD
+Ghega is positioned as a modern healthcare integration engine, not a Mirth clone. It provides typed channel definitions, deterministic tests, durable message processing, replay safety, observability, migration tooling, and AI-assisted authoring. It does not claim Mirth runtime compatibility, feature parity, or drop-in replacement status.
 
 ## Consequences
 
-TBD
+- Architectural decisions are not constrained by Mirth compatibility.
+- Migration tooling will translate Mirth structure into Ghega-native typed channels, not emulate Mirth behavior.
+- Users must expect a learning curve and rethinking of channel design.
+- Marketing and documentation must consistently reinforce the "beyond Mirth" positioning.
 
 ## Alternatives considered
 

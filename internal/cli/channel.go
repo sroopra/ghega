@@ -8,7 +8,6 @@ import (
 
 	"github.com/sroopra/ghega/pkg/channel"
 	"github.com/sroopra/ghega/pkg/channelstore"
-	"gopkg.in/yaml.v3"
 )
 
 func runChannel(args []string) error {
@@ -78,9 +77,15 @@ func runChannelTest(args []string) error {
 		return fmt.Errorf("read channel file: %w", err)
 	}
 
-	var ch channel.Channel
-	if err := yaml.Unmarshal(data, &ch); err != nil {
-		return fmt.Errorf("parse channel yaml: %w", err)
+	ch, valErrs := channel.ValidateYAML(data)
+	if ch != nil {
+		valErrs = append(valErrs, channel.ValidatePolicies(ch)...)
+	}
+	if len(valErrs) > 0 {
+		for _, e := range valErrs {
+			fmt.Fprintf(os.Stderr, "%s: %s\n", e.Field, e.Message)
+		}
+		os.Exit(1)
 	}
 
 	fixtures, err := channel.LoadTestFixtures(channelPath, ch.Tests)

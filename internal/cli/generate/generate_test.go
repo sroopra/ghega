@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sroopra/ghega/pkg/channel"
 	"gopkg.in/yaml.v3"
 )
 
@@ -53,6 +54,7 @@ func TestGenerateMLLPToHTTP_CreatesExpectedFiles(t *testing.T) {
 		"channel.yaml",
 		"tests/fixture.yaml",
 		"fixtures/sample.hl7",
+		"fixtures/minimal.hl7",
 	}
 
 	for _, rel := range expectedFiles {
@@ -87,12 +89,35 @@ func TestGenerateMLLPToHTTP_ValidYAML(t *testing.T) {
 		t.Errorf("expected name 'demo-channel', got %v", doc["name"])
 	}
 
-	mapping, ok := doc["mapping"].(map[string]interface{})
+	mappings, ok := doc["mappings"].([]interface{})
 	if !ok {
-		t.Fatalf("expected mapping to be a map, got %T", doc["mapping"])
+		t.Fatalf("expected mappings to be a list, got %T", doc["mappings"])
 	}
-	if mapping["messageType"] != "ADT_A01" {
-		t.Errorf("expected messageType 'ADT_A01', got %v", mapping["messageType"])
+	if len(mappings) == 0 {
+		t.Fatalf("expected at least one mapping")
+	}
+
+	// Validate against the real channel schema.
+	ch, errs := channel.ValidateYAML(data)
+	if len(errs) > 0 {
+		for _, e := range errs {
+			t.Errorf("validation error: %s: %s", e.Field, e.Message)
+		}
+	}
+	if ch == nil {
+		t.Fatal("ValidateYAML returned nil channel")
+	}
+	if ch.Source.Type != "mllp" {
+		t.Errorf("source.type = %q, want mllp", ch.Source.Type)
+	}
+	if ch.Destination.Type != "http" {
+		t.Errorf("destination.type = %q, want http", ch.Destination.Type)
+	}
+	if len(ch.Mappings) == 0 {
+		t.Error("expected mappings to be non-empty")
+	}
+	if len(ch.Tests) == 0 {
+		t.Error("expected tests to be non-empty")
 	}
 }
 

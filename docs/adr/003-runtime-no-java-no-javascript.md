@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -10,11 +10,14 @@ To keep the engine lightweight, secure, and simple to deploy, the core runtime m
 
 ## Decision
 
-TBD
+The Ghega engine runtime prohibits Java, the JVM, and JavaScript execution engines. No Java runtime, JRE, JDK, Node.js, npm, yarn, or pnpm may be present in the runtime image. Go packages may not import JavaScript execution engines (e.g., goja, otto, yaegi, v8go). This is enforced by CI and runtime boundary checks.
 
 ## Consequences
 
-TBD
+- Channel logic must be expressed in Go or declarative YAML, not JavaScript.
+- The runtime image remains small (distroless static) and free of JVM/Node supply-chain risks.
+- Users cannot bring existing Mirth JavaScript transformations without rewriting them as typed Go mappings.
+- Java-based tools may still be used for external conformance testing, but never as required runtime dependencies.
 
 ## Alternatives considered
 

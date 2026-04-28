@@ -2,6 +2,7 @@ package channelstore
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -128,11 +129,16 @@ func (s *InMemoryStore) ListChannelRevisions(_ context.Context, name string) ([]
 	return out, nil
 }
 
-// RollbackChannel verifies the hash exists and records a rollback audit entry.
+// RollbackChannel verifies the hash exists, re-saves it as the latest revision,
+// and records a rollback audit entry.
 func (s *InMemoryStore) RollbackChannel(ctx context.Context, name, hash string) error {
-	_, err := s.GetChannelRevision(ctx, name, hash)
+	rec, err := s.GetChannelRevision(ctx, name, hash)
 	if err != nil {
 		return err
+	}
+	// Re-save with a new auto-incremented revision so it becomes the latest.
+	if err := s.SaveChannel(ctx, name, hash, rec.YAML, 0); err != nil {
+		return fmt.Errorf("re-save rolled-back revision: %w", err)
 	}
 	return s.SaveDeploymentAudit(ctx, name, hash, "rollback")
 }

@@ -29,3 +29,14 @@ jobs:
 
       - name: Runtime boundary verification
         run: make test-runtime-no-java-js
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build UI
+        run: make ui-build
+
+      - name: Validate skills
+        run: make validate-skills

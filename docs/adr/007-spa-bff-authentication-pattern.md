@@ -2,19 +2,22 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
-The Ghega Console is a single-page application (SPA) that communicates with the Go backend. Authentication must protect both the static assets and the API. The pattern chosen (e.g., session cookies, JWT in localStorage, OAuth2/OIDC proxy) affects security, UX, and implementation complexity.
+The Ghega Console is a single-page application (SPA) that communicates with the Go backend. Authentication must protect both the static assets and the API. The pattern chosen affects security, UX, and implementation complexity.
 
 ## Decision
 
-TBD
+Ghega uses a Backend-for-Frontend (BFF) authentication pattern. The Go server acts as the BFF: it validates sessions or tokens, proxies to identity providers if needed, and serves the SPA. The SPA does not store tokens in localStorage. Production authentication uses OIDC with session cookies; a placeholder middleware validates bearer tokens in development.
 
 ## Consequences
 
-TBD
+- The Go server controls authentication state, reducing XSS risk.
+- Session cookies require CSRF protection for mutating API calls.
+- The BFF can inject channel-scoped permissions into API responses.
+- OIDC integration is deferred to Phase 5; Phase 2–3 use placeholder auth.
 
 ## Alternatives considered
 

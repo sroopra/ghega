@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -10,11 +10,14 @@ Ghega can be deployed as a single binary or as separate services. A key question
 
 ## Decision
 
-TBD
+The Ghega Console UI is served as static assets by the Go HTTP server (`ghega serve`). The built UI is embedded or served from the filesystem alongside the binary. For large-scale deployments, the UI may be served from a CDN or static file server with the Go API as the BFF backend.
 
 ## Consequences
 
-TBD
+- Single-binary deployments are simple: `./ghega serve` serves both API and UI.
+- Large deployments can separate UI and API for independent scaling.
+- UI build artifacts must be included in the container image or deployment package.
+- No hidden production UI state: all UI configuration comes from the API.
 
 ## Alternatives considered
 

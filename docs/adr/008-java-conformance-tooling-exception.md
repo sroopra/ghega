@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -10,11 +10,14 @@ Healthcare integration requires conformance with standards such as HL7v2 and FHI
 
 ## Decision
 
-TBD
+Java-based tools are permitted ONLY for external conformance testing, validation, and CI-time checks. They may never be required runtime dependencies of the Ghega engine. The runtime image must not contain a JVM. Conformance tools run in separate CI steps or containers.
 
 ## Consequences
 
-TBD
+- The engine runtime remains free of JVM dependencies.
+- CI can still validate FHIR conformance using HAPI or similar tools in isolated steps.
+- Users who need conformance validation must run it as a separate process.
+- The project must maintain pure-Go parsers for production message processing.
 
 ## Alternatives considered
 

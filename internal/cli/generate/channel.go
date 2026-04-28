@@ -67,23 +67,57 @@ func generateMLLPToHTTP(name, messageType, outDir string) error {
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 
 	channelYAML := fmt.Sprintf(`%sname: %s
+description: Generated ADT A01 MLLP to HTTP channel
 source:
   type: mllp
-  host: 0.0.0.0
-  port: 2575
+  config:
+    host: 0.0.0.0
+    port: 2575
 destination:
   type: http
-  url: http://example.com/webhook
-mapping:
-  messageType: %s
-`, fmt.Sprintf(generatedHeader, timestamp), name, messageType)
+  config:
+    url: http://example.com/webhook
+    method: POST
+    timeout: 30
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+  - source: PID-5.1
+    target: patient_last_name
+  - source: PID-5.2
+    target: patient_first_name
+  - source: MSH-9.1
+    target: message_type
+tests:
+  - name: valid_adt_a01
+    description: A valid ADT A01 message should map all fields
+    input: fixtures/sample.hl7
+    expected:
+      patient_mrn: SYNTHETIC_MRN_123456
+      patient_last_name: TESTPATIENT
+      patient_first_name: SYNTHETIC
+      message_type: ADT
+  - name: missing_pid_segment
+    description: A message without PID should still produce message_type
+    input: fixtures/minimal.hl7
+    expected:
+      message_type: ADT
+policies:
+  network:
+    allowedHosts:
+      - example.com
+  payload:
+    maxSizeBytes: 1048576
+  time:
+    maxProcessingSeconds: 30
+`, fmt.Sprintf(generatedHeader, timestamp), name)
 
 	if err := os.WriteFile(filepath.Join(outDir, "channel.yaml"), []byte(channelYAML), 0644); err != nil {
 		return fmt.Errorf("writing channel.yaml: %w", err)
 	}
 
-	testFixture := fmt.Sprintf(`%s# Placeholder test fixture for %s
-# Add integration tests here.
+	testFixture := fmt.Sprintf(`%s# Test fixtures for %s
+# Fixtures are loaded from the fixtures/ directory.
 `, fmt.Sprintf(generatedHeader, timestamp), name)
 
 	if err := os.WriteFile(filepath.Join(outDir, "tests", "fixture.yaml"), []byte(testFixture), 0644); err != nil {
@@ -93,6 +127,11 @@ mapping:
 	hl7Message := buildSyntheticHL7(messageType)
 	if err := os.WriteFile(filepath.Join(outDir, "fixtures", "sample.hl7"), []byte(hl7Message), 0644); err != nil {
 		return fmt.Errorf("writing fixtures/sample.hl7: %w", err)
+	}
+
+	minimalHL7 := buildMinimalHL7(messageType)
+	if err := os.WriteFile(filepath.Join(outDir, "fixtures", "minimal.hl7"), []byte(minimalHL7), 0644); err != nil {
+		return fmt.Errorf("writing fixtures/minimal.hl7: %w", err)
 	}
 
 	return nil
@@ -106,6 +145,15 @@ func buildSyntheticHL7(messageType string) string {
 		"EVN|A01|20240101000000|||",
 		"PID|1||SYNTHETIC_MRN_123456^^^GHEGA_FACILITY^MR||TESTPATIENT^SYNTHETIC||19800101|M|||123 SYNTHETIC STREET^^SYNTHETIC CITY^ST^12345||555-0100||||||||||||||||||||",
 		"PV1|1|I|GHEGA_WARD^GHEGA_ROOM^1||||||||||||||||||||||||||||||||||||||||||20240101000000",
+	}
+	return strings.Join(segments, "\r") + "\r"
+}
+
+func buildMinimalHL7(messageType string) string {
+	// Minimal HL7 message with only MSH and EVN — no PID segment.
+	segments := []string{
+		fmt.Sprintf("MSH|^~\\&|GHEGA_SENDER|GHEGA_FACILITY|GHEGA_RECEIVER|GHEGA_FACILITY|%s||%s|12346|P|2.5", time.Now().UTC().Format("20060102150405"), messageType),
+		"EVN|A01|20240101000000|||",
 	}
 	return strings.Join(segments, "\r") + "\r"
 }

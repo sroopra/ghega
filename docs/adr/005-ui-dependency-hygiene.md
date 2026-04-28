@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
@@ -10,11 +10,14 @@ Because the Console is a TypeScript/React application (ADR-004), it is vulnerabl
 
 ## Decision
 
-TBD
+All UI dependencies must have clearly compatible open-source licenses. `npm audit` and a custom dependency audit script (`scripts/ui-dependency-audit.sh`) are run in CI. Unused dependencies must be removed. Major framework upgrades require explicit review.
 
 ## Consequences
 
-TBD
+- Bundle size and attack surface are kept under control.
+- License compatibility is verified automatically in CI.
+- Adding a UI dependency requires justification and audit update.
+- Development velocity is slightly slower due to audit gate.
 
 ## Alternatives considered
 

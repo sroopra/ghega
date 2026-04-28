@@ -117,6 +117,7 @@ func parseSegment(raw string) (hl7Segment, error) {
 }
 
 // getValue resolves an HL7 field path such as "PID-3.1".
+// Missing segments or out-of-range fields return empty strings (standard HL7 semantics).
 func (m *hl7Message) getValue(path string) (string, error) {
 	segment, fieldNo, compNo, err := parsePath(path)
 	if err != nil {
@@ -127,13 +128,9 @@ func (m *hl7Message) getValue(path string) (string, error) {
 		if seg.name != segment {
 			continue
 		}
-		val, err := seg.getField(fieldNo, compNo)
-		if err != nil {
-			return "", err
-		}
-		return val, nil
+		return seg.getField(fieldNo, compNo)
 	}
-	return "", fmt.Errorf("segment %q not found", segment)
+	return "", nil
 }
 
 // parsePath parses an HL7 path like "PID-3.1" into segment, field, component.
@@ -196,13 +193,15 @@ func (s hl7Segment) getField(fieldNo, compNo int) (string, error) {
 		if fieldNo == 1 {
 			return "|", nil
 		}
-		idx = fieldNo
+		// fields[1] is MSH-2, fields[2] is MSH-3, etc.
+		idx = fieldNo - 1
 	} else {
+		// fields[0] is segment name; fields[1] is PID-1, fields[2] is PID-2, etc.
 		idx = fieldNo
 	}
 
 	if idx >= len(s.fields) {
-		return "", fmt.Errorf("field %d out of range in segment %s", fieldNo, s.name)
+		return "", nil
 	}
 	val := s.fields[idx]
 
@@ -210,7 +209,7 @@ func (s hl7Segment) getField(fieldNo, compNo int) (string, error) {
 		comps := strings.Split(val, "^")
 		cidx := compNo - 1
 		if cidx >= len(comps) {
-			return "", fmt.Errorf("component %d out of range in field %d", compNo, fieldNo)
+			return "", nil
 		}
 		return comps[cidx], nil
 	}
