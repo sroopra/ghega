@@ -1,12 +1,14 @@
 package cli
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/sroopra/ghega/pkg/channel"
+	"github.com/sroopra/ghega/pkg/channelstore"
 	"gopkg.in/yaml.v3"
 )
 
@@ -20,6 +22,12 @@ func runChannel(args []string) error {
 		return runChannelValidate(args[1:])
 	case "test":
 		return runChannelTest(args[1:])
+	case "deploy":
+		return runChannelDeploy(args[1:])
+	case "diff":
+		return runChannelDiff(args[1:])
+	case "rollback":
+		return runChannelRollback(args[1:])
 	default:
 		return fmt.Errorf("unknown channel subcommand: %s", args[0])
 	}
@@ -123,5 +131,139 @@ func runChannelTest(args []string) error {
 		os.Exit(1)
 	}
 
+	return nil
+}
+
+func defaultChannelStore() channelstore.ChannelStore {
+	return channelstore.NewInMemoryStore()
+}
+
+func runChannelDeploy(args []string) error {
+	return runChannelDeployWithStore(args, defaultChannelStore())
+}
+
+func runChannelDeployWithStore(args []string, store channelstore.ChannelStore) error {
+	fs := flag.NewFlagSet("deploy", flag.ExitOnError)
+	_ = fs.Parse(args)
+
+	if fs.NArg() == 0 {
+		return fmt.Errorf("usage: ghega channel deploy <path-to-channel.yaml>")
+	}
+
+	channelPath := fs.Arg(0)
+	data, err := os.ReadFile(channelPath)
+	if err != nil {
+		return fmt.Errorf("read channel file: %w", err)
+	}
+
+	ch, valErrs := channel.ValidateYAML(data)
+	if ch != nil {
+		valErrs = append(valErrs, channel.ValidatePolicies(ch)...)
+	}
+	if len(valErrs) > 0 {
+		for _, e := range valErrs {
+			fmt.Fprintf(os.Stderr, "%s: %s\n", e.Field, e.Message)
+		}
+		return fmt.Errorf("channel validation failed")
+	}
+
+	hash, err := channel.HashChannel(ch)
+	if err != nil {
+		return fmt.Errorf("hash channel: %w", err)
+	}
+
+	ctx := context.Background()
+	if err := store.SaveChannel(ctx, ch.Name, hash, data, 0); err != nil {
+		return fmt.Errorf("save channel: %w", err)
+	}
+	if err := store.SaveDeploymentAudit(ctx, ch.Name, hash, "deploy"); err != nil {
+		return fmt.Errorf("save deployment audit: %w", err)
+	}
+
+	fmt.Printf("deployed %s@%s\n", ch.Name, hash[:8])
+	return nil
+}
+
+func runChannelDiff(args []string) error {
+	return runChannelDiffWithStore(args, defaultChannelStore())
+}
+
+func runChannelDiffWithStore(args []string, store channelstore.ChannelStore) error {
+	fs := flag.NewFlagSet("diff", flag.ExitOnError)
+	_ = fs.Parse(args)
+
+	if fs.NArg() == 0 {
+		return fmt.Errorf("usage: ghega channel diff <path-to-channel.yaml>")
+	}
+
+	channelPath := fs.Arg(0)
+	data, err := os.ReadFile(channelPath)
+	if err != nil {
+		return fmt.Errorf("read channel file: %w", err)
+	}
+
+	ch, valErrs := channel.ValidateYAML(data)
+	if ch != nil {
+		valErrs = append(valErrs, channel.ValidatePolicies(ch)...)
+	}
+	if len(valErrs) > 0 {
+		for _, e := range valErrs {
+			fmt.Fprintf(os.Stderr, "%s: %s\n", e.Field, e.Message)
+		}
+		return fmt.Errorf("channel validation failed")
+	}
+
+	localHash, err := channel.HashChannel(ch)
+	if err != nil {
+		return fmt.Errorf("hash channel: %w", err)
+	}
+
+	ctx := context.Background()
+	record, err := store.GetChannel(ctx, ch.Name)
+	if err != nil {
+		if _, ok := err.(*channelstore.ErrNotFound); ok {
+			fmt.Println("channel not deployed")
+			return nil
+		}
+		return fmt.Errorf("get deployed channel: %w", err)
+	}
+
+	if record.Hash == localHash {
+		fmt.Println("no changes detected")
+		return nil
+	}
+
+	fmt.Printf("changes detected\n  local:  %s\n  remote: %s\n", localHash[:8], record.Hash[:8])
+	return nil
+}
+
+func runChannelRollback(args []string) error {
+	return runChannelRollbackWithStore(args, defaultChannelStore())
+}
+
+func runChannelRollbackWithStore(args []string, store channelstore.ChannelStore) error {
+	fs := flag.NewFlagSet("rollback", flag.ExitOnError)
+	_ = fs.Parse(args)
+
+	if fs.NArg() < 2 {
+		return fmt.Errorf("usage: ghega channel rollback <channel-name> <hash>")
+	}
+
+	channelName := fs.Arg(0)
+	hash := fs.Arg(1)
+
+	ctx := context.Background()
+
+	// Verify the revision exists before rolling back.
+	_, err := store.GetChannelRevision(ctx, channelName, hash)
+	if err != nil {
+		return fmt.Errorf("get channel revision: %w", err)
+	}
+
+	if err := store.RollbackChannel(ctx, channelName, hash); err != nil {
+		return fmt.Errorf("rollback channel: %w", err)
+	}
+
+	fmt.Printf("rolled back %s to %s\n", channelName, hash[:8])
 	return nil
 }

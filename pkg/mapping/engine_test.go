@@ -206,6 +206,28 @@ func TestMSHFieldOne(t *testing.T) {
 	}
 }
 
+func TestMSHFieldNine(t *testing.T) {
+	raw := []byte("MSH|^~\\&|App|Fac|DestApp|DestFac|20240101120000||ADT^A01|MSG001|P|2.5\r")
+	msg, err := parseHL7(raw)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	val, err := msg.getValue("MSH-9")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if val != "ADT^A01" {
+		t.Errorf("MSH-9 = %q, want %q", val, "ADT^A01")
+	}
+	val, err = msg.getValue("MSH-9.1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if val != "ADT" {
+		t.Errorf("MSH-9.1 = %q, want %q", val, "ADT")
+	}
+}
+
 func TestEmptyMessage(t *testing.T) {
 	eng := NewEngine([]Mapping{{Source: "PID-3.1", Target: "x", Transform: TransformCopy}})
 	_, err := eng.Apply([]byte{})

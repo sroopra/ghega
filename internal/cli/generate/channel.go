@@ -67,24 +67,70 @@ func generateMLLPToHTTP(name, messageType, outDir string) error {
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 
 	channelYAML := fmt.Sprintf(`%sname: %s
+description: MLLP to HTTP channel for %s messages
 source:
   type: mllp
-  host: 0.0.0.0
-  port: 2575
+  config:
+    host: 0.0.0.0
+    port: 2575
 destination:
   type: http
-  url: http://example.com/webhook
-mapping:
-  messageType: %s
+  config:
+    url: http://example.com/webhook
+    method: POST
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+    transform: copy
+  - source: PID-5.1
+    target: last_name
+    transform: copy
+  - source: PID-5.2
+    target: first_name
+    transform: copy
+  - source: MSH-9.1
+    target: message_type
+    transform: copy
+tests:
+  - name: basic-pass
+    description: Validates that all four mappings extract the correct values from a valid HL7 message.
+    input: fixtures/sample.hl7
+    expected:
+      patient_mrn: SYNTHETIC_MRN_123456
+      last_name: TESTPATIENT
+      first_name: SYNTHETIC
+      message_type: ADT
+  - name: static-transform
+    description: Demonstrates that static transforms work independently of input segments.
+    input: fixtures/sample.hl7
+    expected:
+      patient_mrn: SYNTHETIC_MRN_123456
+      last_name: TESTPATIENT
+      first_name: SYNTHETIC
+      message_type: ADT
+policies:
+  network:
+    allowedHosts:
+      - example.com
+  payload:
+    maxSizeBytes: 1048576
+  time:
+    maxProcessingSeconds: 30
 `, fmt.Sprintf(generatedHeader, timestamp), name, messageType)
 
 	if err := os.WriteFile(filepath.Join(outDir, "channel.yaml"), []byte(channelYAML), 0644); err != nil {
 		return fmt.Errorf("writing channel.yaml: %w", err)
 	}
 
-	testFixture := fmt.Sprintf(`%s# Placeholder test fixture for %s
-# Add integration tests here.
-`, fmt.Sprintf(generatedHeader, timestamp), name)
+	testFixture := fmt.Sprintf(`%sname: fixture-example
+description: Example test fixture that can be copied into channel.yaml tests.
+input: fixtures/sample.hl7
+expected:
+  patient_mrn: SYNTHETIC_MRN_123456
+  last_name: TESTPATIENT
+  first_name: SYNTHETIC
+  message_type: ADT
+`, fmt.Sprintf(generatedHeader, timestamp))
 
 	if err := os.WriteFile(filepath.Join(outDir, "tests", "fixture.yaml"), []byte(testFixture), 0644); err != nil {
 		return fmt.Errorf("writing tests/fixture.yaml: %w", err)
@@ -102,7 +148,7 @@ func buildSyntheticHL7(messageType string) string {
 	// All data is synthetic and clearly marked as such.
 	// No real patient names, addresses, or identifiers are used.
 	segments := []string{
-		fmt.Sprintf("MSH|^~\\&|GHEGA_SENDER|GHEGA_FACILITY|GHEGA_RECEIVER|GHEGA_FACILITY|%s||%s|12345|P|2.5", time.Now().UTC().Format("20060102150405"), messageType),
+		fmt.Sprintf("MSH|^~\\&|GHEGA_SENDER|GHEGA_FACILITY|GHEGA_RECEIVER|GHEGA_FACILITY|%s||%s|12345|P|2.5", time.Now().UTC().Format("20060102150405"), strings.Replace(messageType, "_", "^", 1)),
 		"EVN|A01|20240101000000|||",
 		"PID|1||SYNTHETIC_MRN_123456^^^GHEGA_FACILITY^MR||TESTPATIENT^SYNTHETIC||19800101|M|||123 SYNTHETIC STREET^^SYNTHETIC CITY^ST^12345||555-0100||||||||||||||||||||",
 		"PV1|1|I|GHEGA_WARD^GHEGA_ROOM^1||||||||||||||||||||||||||||||||||||||||||20240101000000",

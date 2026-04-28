@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sroopra/ghega/pkg/channel"
 	"gopkg.in/yaml.v3"
 )
 
@@ -87,12 +88,40 @@ func TestGenerateMLLPToHTTP_ValidYAML(t *testing.T) {
 		t.Errorf("expected name 'demo-channel', got %v", doc["name"])
 	}
 
-	mapping, ok := doc["mapping"].(map[string]interface{})
+	mappings, ok := doc["mappings"].([]interface{})
 	if !ok {
-		t.Fatalf("expected mapping to be a map, got %T", doc["mapping"])
+		t.Fatalf("expected mappings to be a list, got %T", doc["mappings"])
 	}
-	if mapping["messageType"] != "ADT_A01" {
-		t.Errorf("expected messageType 'ADT_A01', got %v", mapping["messageType"])
+	if len(mappings) < 4 {
+		t.Errorf("expected at least 4 mappings, got %d", len(mappings))
+	}
+}
+
+func TestGenerateMLLPToHTTP_PassesValidation(t *testing.T) {
+	tmpDir := t.TempDir()
+	outDir := filepath.Join(tmpDir, "generated")
+
+	err := RunChannelGenerate([]string{"mllp-to-http", "--name", "demo-channel", "--message-type", "ADT_A01", "--out", outDir})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	channelPath := filepath.Join(outDir, "channel.yaml")
+	data, err := os.ReadFile(channelPath)
+	if err != nil {
+		t.Fatalf("reading channel.yaml: %v", err)
+	}
+
+	ch, valErrs := channel.ValidateYAML(data)
+	if ch != nil {
+		valErrs = append(valErrs, channel.ValidatePolicies(ch)...)
+	}
+	if len(valErrs) > 0 {
+		var msgs []string
+		for _, e := range valErrs {
+			msgs = append(msgs, e.Field+": "+e.Message)
+		}
+		t.Fatalf("generated channel failed validation: %s", strings.Join(msgs, "; "))
 	}
 }
 
