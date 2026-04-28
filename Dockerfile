@@ -6,7 +6,18 @@
 #   - Minimal attack surface: distroless static final stage.
 
 # ------------------------------------------------------------------------------
-# Stage 1: Builder
+# Stage 1: UI Builder
+# ------------------------------------------------------------------------------
+FROM node:20-alpine AS ui-builder
+
+WORKDIR /ui
+COPY ui/package.json ui/package-lock.json ./
+RUN npm ci
+COPY ui/ ./
+RUN npm run build
+
+# ------------------------------------------------------------------------------
+# Stage 2: Go Builder
 # ------------------------------------------------------------------------------
 FROM golang:1.26-alpine AS builder
 
@@ -18,12 +29,14 @@ WORKDIR /src
 COPY go.mod go.sum* ./
 RUN go mod download
 
-# Copy source and build
+# Copy source and built UI
 COPY . .
+COPY --from=ui-builder /ui/dist ./ui/dist
+
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /bin/ghega ./cmd/ghega
 
 # ------------------------------------------------------------------------------
-# Stage 2: Final (distroless static)
+# Stage 3: Final (distroless static)
 # ------------------------------------------------------------------------------
 FROM gcr.io/distroless/static:nonroot
 
