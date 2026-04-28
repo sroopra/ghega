@@ -12,8 +12,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/sroopra/ghega/internal/engine"
 	"github.com/sroopra/ghega/internal/server"
 	"github.com/sroopra/ghega/pkg/messagestore"
+	"github.com/sroopra/ghega/pkg/mllp"
 )
 
 func runServe(args []string) error {
@@ -32,30 +34,50 @@ func runServe(args []string) error {
 		return fmt.Errorf("init store: %w", err)
 	}
 
+	// Start HTTP API server.
 	srv := server.New(store)
 	httpSrv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", *port),
 		Handler: srv.Handler(),
 	}
 
-	errCh := make(chan error, 1)
+	httpErrCh := make(chan error, 1)
 	go func() {
-		fmt.Printf("Ghega server listening on port %d\n", *port)
-		errCh <- httpSrv.ListenAndServe()
+		fmt.Printf("Ghega HTTP server listening on port %d\n", *port)
+		httpErrCh <- httpSrv.ListenAndServe()
 	}()
 
+	// Start MLLP listener.
+	mllpCfg := mllp.ConfigFromEnv()
+	mllpHandler := engine.NewMLLPHandler(store, engine.DefaultHandlerConfig(), slog.Default())
+	mllpListener := mllp.NewListener(mllpCfg, mllpHandler, slog.Default())
+
+	if err := mllpListener.Start(); err != nil {
+		slog.Warn("failed to start MLLP listener; HTTP server will still run", slog.String("error", err.Error()))
+	} else {
+		fmt.Printf("Ghega MLLP listener listening on %s:%d\n", mllpCfg.Host, mllpCfg.Port)
+	}
+
+	// Wait for shutdown signal.
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
 	select {
-	case err := <-errCh:
+	case err := <-httpErrCh:
 		if err != nil && err != http.ErrServerClosed {
-			return fmt.Errorf("server error: %w", err)
+			if mllpListener.Addr() != nil {
+				_ = mllpListener.Stop()
+			}
+			return fmt.Errorf("http server error: %w", err)
 		}
 	case sig := <-sigCh:
 		fmt.Printf("\nReceived signal %s, shutting down...\n", sig)
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
+
+		if mllpListener.Addr() != nil {
+			_ = mllpListener.Stop()
+		}
 		return httpSrv.Shutdown(ctx)
 	}
 

@@ -196,6 +196,17 @@ func (s *SQLiteStore) ListAll(ctx context.Context, limit, offset int) ([]*payloa
 	return out, nil
 }
 
+// UpdateStatus updates the status of a message by its message ID.
+func (s *SQLiteStore) UpdateStatus(ctx context.Context, messageID, status string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE messages SET status = ? WHERE message_id = ?
+	`, status, messageID)
+	if err != nil {
+		return fmt.Errorf("update status: %w", err)
+	}
+	return nil
+}
+
 // Close closes the underlying database connection.
 func (s *SQLiteStore) Close() error {
 	return s.db.Close()

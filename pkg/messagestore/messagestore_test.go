@@ -287,6 +287,67 @@ func TestStore_NeverLogsPayloadBytes(t *testing.T) {
 	}
 }
 
+func TestInMemoryStore_UpdateStatus(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryStore()
+
+	env := newTestEnvelope("ch-adt", "msg-upd", "received")
+	if err := store.Save(ctx, env, []byte(syntheticPayload)); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	if err := store.UpdateStatus(ctx, "msg-upd", "delivered"); err != nil {
+		t.Fatalf("UpdateStatus failed: %v", err)
+	}
+
+	got, err := store.GetMetadata(ctx, "msg-upd")
+	if err != nil {
+		t.Fatalf("GetMetadata failed: %v", err)
+	}
+	if got.Status != "delivered" {
+		t.Errorf("Status = %q, want delivered", got.Status)
+	}
+}
+
+func TestInMemoryStore_UpdateStatus_NotFound(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryStore()
+
+	err := store.UpdateStatus(ctx, "nonexistent", "delivered")
+	if err == nil {
+		t.Fatal("expected error for missing message")
+	}
+	if _, ok := err.(*ErrNotFound); !ok {
+		t.Fatalf("expected *ErrNotFound, got %T", err)
+	}
+}
+
+func TestSQLiteStore_UpdateStatus(t *testing.T) {
+	ctx := context.Background()
+	store, err := NewSQLiteStore(":memory:")
+	if err != nil {
+		t.Fatalf("NewSQLiteStore failed: %v", err)
+	}
+	defer store.Close()
+
+	env := newTestEnvelope("ch-adt", "msg-sqlite-upd", "received")
+	if err := store.Save(ctx, env, []byte(syntheticPayload)); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	if err := store.UpdateStatus(ctx, "msg-sqlite-upd", "failed"); err != nil {
+		t.Fatalf("UpdateStatus failed: %v", err)
+	}
+
+	got, err := store.GetMetadata(ctx, "msg-sqlite-upd")
+	if err != nil {
+		t.Fatalf("GetMetadata failed: %v", err)
+	}
+	if got.Status != "failed" {
+		t.Errorf("Status = %q, want failed", got.Status)
+	}
+}
+
 func TestEnvelope_String_NeverContainsPayloadBytes(t *testing.T) {
 	env := newTestEnvelope("ch-adt", "msg-fmt", "received")
 	env.Ref = payloadref.PayloadRef{StorageID: "sid", Location: "loc"}

@@ -24,6 +24,9 @@ type Store interface {
 
 	// ListAll returns message metadata across all channels, paginated.
 	ListAll(ctx context.Context, limit, offset int) ([]*payloadref.Envelope, error)
+
+	// UpdateStatus updates the status of a message by its message ID.
+	UpdateStatus(ctx context.Context, messageID, status string) error
 }
 
 // ErrNotFound is returned when a message ID does not exist in the store.
