@@ -34,6 +34,7 @@ type Test struct {
 	Description string            `json:"description,omitempty" yaml:"description,omitempty"`
 	Input       string            `json:"input" yaml:"input"`
 	Expected    map[string]string `json:"expected" yaml:"expected"`
+	ExpectError bool              `json:"expectError,omitempty" yaml:"expectError,omitempty"`
 }
 
 // Policies holds governance and runtime constraints for a channel.

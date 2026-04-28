@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -64,13 +65,6 @@ func TestEndToEnd_EditToTestUnder5Seconds(t *testing.T) {
 		t.Fatalf("write edited channel: %v", err)
 	}
 
-	// j. Run ghega channel diff and verify it detects the change.
-	// Note: diff is performed before deploying the edited version so that it
-	// meaningfully detects the pending change.
-	if err := runChannelDiffWithStore([]string{channelPath}, store); err != nil {
-		t.Fatalf("diff edited: %v", err)
-	}
-
 	// g. Validate the edited channel.
 	if err := runChannelValidate([]string{channelPath}); err != nil {
 		t.Fatalf("validate edited: %v", err)
@@ -85,6 +79,23 @@ func TestEndToEnd_EditToTestUnder5Seconds(t *testing.T) {
 	editToTestDuration := time.Since(editToTestStart)
 	if editToTestDuration > 5*time.Second {
 		t.Fatalf("edit-to-test took %s, expected under 5s", editToTestDuration)
+	}
+
+	// j. Run ghega channel diff and verify it detects the change.
+	// Diff is performed before deploying the edited version so that it
+	// meaningfully detects the pending change.
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+	err = runChannelDiffWithStore([]string{channelPath}, store)
+	w.Close()
+	os.Stdout = oldStdout
+	if err != nil {
+		t.Fatalf("diff edited: %v", err)
+	}
+	diffOut, _ := io.ReadAll(r)
+	if !strings.Contains(string(diffOut), "changes detected") {
+		t.Fatalf("expected diff to detect changes, got: %s", string(diffOut))
 	}
 
 	// i. Deploy the edited channel.

@@ -125,6 +125,42 @@ func TestGenerateMLLPToHTTP_PassesValidation(t *testing.T) {
 	}
 }
 
+func TestGenerateMLLPToHTTP_HasErrorHandlingTest(t *testing.T) {
+	tmpDir := t.TempDir()
+	outDir := filepath.Join(tmpDir, "generated")
+
+	err := RunChannelGenerate([]string{"mllp-to-http", "--name", "demo-channel", "--message-type", "ADT_A01", "--out", outDir})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	channelPath := filepath.Join(outDir, "channel.yaml")
+	data, err := os.ReadFile(channelPath)
+	if err != nil {
+		t.Fatalf("reading channel.yaml: %v", err)
+	}
+
+	var ch channel.Channel
+	if err := yaml.Unmarshal(data, &ch); err != nil {
+		t.Fatalf("parsing channel.yaml: %v", err)
+	}
+
+	if len(ch.Tests) < 2 {
+		t.Fatalf("expected at least 2 tests, got %d", len(ch.Tests))
+	}
+
+	foundExpectError := false
+	for _, tt := range ch.Tests {
+		if tt.ExpectError {
+			foundExpectError = true
+			break
+		}
+	}
+	if !foundExpectError {
+		t.Fatal("expected at least one test with expectError: true")
+	}
+}
+
 func TestGenerateMLLPToHTTP_NoPHI(t *testing.T) {
 	tmpDir := t.TempDir()
 	outDir := filepath.Join(tmpDir, "generated")

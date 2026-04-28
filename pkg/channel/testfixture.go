@@ -13,6 +13,7 @@ type TestFixture struct {
 	Description string            `json:"description,omitempty" yaml:"description,omitempty"`
 	Input       string            `json:"input" yaml:"input"`
 	Expected    map[string]string `json:"expected" yaml:"expected"`
+	ExpectError bool              `json:"expectError,omitempty" yaml:"expectError,omitempty"`
 }
 
 // LoadTestFixtures resolves a slice of Test definitions into TestFixtures.
@@ -54,6 +55,7 @@ func LoadTestFixtures(channelPath string, tests []Test) ([]TestFixture, error) {
 			Description: tt.Description,
 			Input:       input,
 			Expected:    tt.Expected,
+			ExpectError: tt.ExpectError,
 		})
 	}
 

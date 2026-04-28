@@ -205,3 +205,57 @@ func TestRunTest_MappingEngineError(t *testing.T) {
 		t.Fatal("expected at least one error")
 	}
 }
+
+func TestRunTest_ExpectError_PassesWhenErrorOccurs(t *testing.T) {
+	fixture := TestFixture{
+		Name:        "expect-error-pass",
+		Input:       "not-hl7",
+		Expected:    map[string]string{},
+		ExpectError: true,
+	}
+	mappings := []mapping.Mapping{
+		{Source: "PID-3.1", Target: "x", Transform: mapping.TransformCopy},
+	}
+
+	result, err := RunTest(fixture, mappings)
+	if err != nil {
+		t.Fatalf("RunTest: %v", err)
+	}
+	if !result.Passed {
+		t.Fatalf("expected test to pass when error is expected, got errors: %v", result.Errors)
+	}
+	if len(result.Warnings) == 0 {
+		t.Fatal("expected a warning about the expected error")
+	}
+}
+
+func TestRunTest_ExpectError_FailsWhenNoErrorOccurs(t *testing.T) {
+	fixture := TestFixture{
+		Name:        "expect-error-fail",
+		Input:       "MSH|^~\\&|GhegaApp|GhegaFac\rPID|1||MRN12345\r",
+		Expected:    map[string]string{"patient_mrn": "MRN12345"},
+		ExpectError: true,
+	}
+	mappings := []mapping.Mapping{
+		{Source: "PID-3.1", Target: "patient_mrn", Transform: mapping.TransformCopy},
+	}
+
+	result, err := RunTest(fixture, mappings)
+	if err != nil {
+		t.Fatalf("RunTest: %v", err)
+	}
+	if result.Passed {
+		t.Fatal("expected test to fail when no error occurs but one was expected")
+	}
+	wantErr := "expected an error but none occurred"
+	found := false
+	for _, e := range result.Errors {
+		if e == wantErr {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected error %q, got %v", wantErr, result.Errors)
+	}
+}

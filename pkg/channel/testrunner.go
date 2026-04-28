@@ -36,8 +36,19 @@ func RunTest(fixture TestFixture, mappings []mapping.Mapping) (*TestResult, erro
 	}
 
 	if err != nil {
+		if fixture.ExpectError {
+			result.Passed = true
+			result.Warnings = append(result.Warnings, fmt.Sprintf("expected error occurred: %v", err))
+			return result, nil
+		}
 		result.Passed = false
 		result.Errors = append(result.Errors, fmt.Sprintf("mapping engine error: %v", err))
+		return result, nil
+	}
+
+	if fixture.ExpectError {
+		result.Passed = false
+		result.Errors = append(result.Errors, "expected an error but none occurred")
 		return result, nil
 	}
 

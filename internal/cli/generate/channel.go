@@ -100,14 +100,11 @@ tests:
       last_name: TESTPATIENT
       first_name: SYNTHETIC
       message_type: ADT
-  - name: static-transform
-    description: Demonstrates that static transforms work independently of input segments.
-    input: fixtures/sample.hl7
-    expected:
-      patient_mrn: SYNTHETIC_MRN_123456
-      last_name: TESTPATIENT
-      first_name: SYNTHETIC
-      message_type: ADT
+  - name: invalid-input-handling
+    description: Verifies that the channel gracefully handles malformed HL7 input.
+    input: NOT_A_VALID_HL7_MESSAGE
+    expected: {}
+    expectError: true
 policies:
   network:
     allowedHosts:

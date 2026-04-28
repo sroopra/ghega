@@ -184,3 +184,43 @@ tests:
 		t.Errorf("expected PASS file-fixture, got:\n%s", string(out))
 	}
 }
+
+func TestChannelTest_ExpectError(t *testing.T) {
+	dir := t.TempDir()
+	chPath := filepath.Join(dir, "channel.yaml")
+	chYAML := `name: adt-a01
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+    transform: copy
+tests:
+  - name: expect-error-pass
+    input: "not-hl7"
+    expected: {}
+    expectError: true
+`
+	if err := os.WriteFile(chPath, []byte(chYAML), 0644); err != nil {
+		t.Fatalf("write channel: %v", err)
+	}
+
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
+
+	err := runChannelTest([]string{chPath})
+
+	w.Close()
+	os.Stdout = oldStdout
+	out, _ := io.ReadAll(r)
+
+	if err != nil {
+		t.Fatalf("runChannelTest: %v", err)
+	}
+	if !strings.Contains(string(out), "PASS expect-error-pass") {
+		t.Errorf("expected PASS expect-error-pass, got:\n%s", string(out))
+	}
+}
