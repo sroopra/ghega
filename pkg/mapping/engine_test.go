@@ -82,8 +82,7 @@ func TestEngineApply(t *testing.T) {
 			mappings: []Mapping{
 				{Source: "PV1-1", Target: "visit", Transform: TransformCopy},
 			},
-			wantErr:   true,
-			errSubstr: "segment \"PV1\" not found",
+			want: map[string]string{},
 		},
 		{
 			name: "unsupported transform",

@@ -17,7 +17,15 @@ func (e *Engine) Apply(raw []byte) (map[string]string, error) {
 	for _, m := range e.Mappings {
 		val, err := e.resolve(msg, m)
 		if err != nil {
-			return nil, fmt.Errorf("mapping %q -> %q: %w", m.Source, m.Target, err)
+			// Fail on configuration errors; skip missing HL7 elements.
+			errStr := err.Error()
+			if strings.Contains(errStr, "unsupported transform") ||
+				strings.Contains(errStr, "invalid path") ||
+				strings.Contains(errStr, "empty message") ||
+				strings.Contains(errStr, "no segments found") {
+				return nil, fmt.Errorf("mapping %q -> %q: %w", m.Source, m.Target, err)
+			}
+			continue
 		}
 		out[m.Target] = val
 	}
@@ -196,7 +204,8 @@ func (s hl7Segment) getField(fieldNo, compNo int) (string, error) {
 		if fieldNo == 1 {
 			return "|", nil
 		}
-		idx = fieldNo
+		// MSH-2 starts at index 1 in the fields slice.
+		idx = fieldNo - 1
 	} else {
 		idx = fieldNo
 	}

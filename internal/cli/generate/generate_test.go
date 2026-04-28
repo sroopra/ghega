@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"gopkg.in/yaml.v3"
+	"github.com/sroopra/ghega/pkg/channel"
 )
 
 func TestRunChannelGenerate_MissingName(t *testing.T) {
@@ -44,7 +44,7 @@ func TestGenerateMLLPToHTTP_CreatesExpectedFiles(t *testing.T) {
 	tmpDir := t.TempDir()
 	outDir := filepath.Join(tmpDir, "generated")
 
-	err := RunChannelGenerate([]string{"mllp-to-http", "--name", "demo-channel", "--message-type", "ADT_A01", "--out", outDir})
+	err := RunChannelGenerate([]string{"mllp-to-http", "--name", "demo-channel", "--message-type", "ADT^A01", "--out", outDir})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -53,6 +53,7 @@ func TestGenerateMLLPToHTTP_CreatesExpectedFiles(t *testing.T) {
 		"channel.yaml",
 		"tests/fixture.yaml",
 		"fixtures/sample.hl7",
+		"fixtures/minimal.hl7",
 	}
 
 	for _, rel := range expectedFiles {
@@ -63,11 +64,11 @@ func TestGenerateMLLPToHTTP_CreatesExpectedFiles(t *testing.T) {
 	}
 }
 
-func TestGenerateMLLPToHTTP_ValidYAML(t *testing.T) {
+func TestGenerateMLLPToHTTP_ValidChannelSchema(t *testing.T) {
 	tmpDir := t.TempDir()
 	outDir := filepath.Join(tmpDir, "generated")
 
-	err := RunChannelGenerate([]string{"mllp-to-http", "--name", "demo-channel", "--message-type", "ADT_A01", "--out", outDir})
+	err := RunChannelGenerate([]string{"mllp-to-http", "--name", "demo-channel", "--message-type", "ADT^A01", "--out", outDir})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -78,21 +79,25 @@ func TestGenerateMLLPToHTTP_ValidYAML(t *testing.T) {
 		t.Fatalf("reading channel.yaml: %v", err)
 	}
 
-	var doc map[string]interface{}
-	if err := yaml.Unmarshal(data, &doc); err != nil {
-		t.Errorf("channel.yaml is not valid YAML: %v", err)
+	ch, valErrs := channel.ValidateYAML(data)
+	if ch == nil {
+		t.Fatalf("expected channel to parse, got nil")
+	}
+	if ch.Name != "demo-channel" {
+		t.Errorf("expected name 'demo-channel', got %q", ch.Name)
+	}
+	if len(valErrs) > 0 {
+		for _, e := range valErrs {
+			t.Errorf("validation error: %s: %s", e.Field, e.Message)
+		}
 	}
 
-	if doc["name"] != "demo-channel" {
-		t.Errorf("expected name 'demo-channel', got %v", doc["name"])
-	}
-
-	mapping, ok := doc["mapping"].(map[string]interface{})
-	if !ok {
-		t.Fatalf("expected mapping to be a map, got %T", doc["mapping"])
-	}
-	if mapping["messageType"] != "ADT_A01" {
-		t.Errorf("expected messageType 'ADT_A01', got %v", mapping["messageType"])
+	// Also validate policies.
+	policyErrs := channel.ValidatePolicies(ch)
+	if len(policyErrs) > 0 {
+		for _, e := range policyErrs {
+			t.Errorf("policy validation error: %s: %s", e.Field, e.Message)
+		}
 	}
 }
 
@@ -100,7 +105,7 @@ func TestGenerateMLLPToHTTP_NoPHI(t *testing.T) {
 	tmpDir := t.TempDir()
 	outDir := filepath.Join(tmpDir, "generated")
 
-	err := RunChannelGenerate([]string{"mllp-to-http", "--name", "demo-channel", "--message-type", "ADT_A01", "--out", outDir})
+	err := RunChannelGenerate([]string{"mllp-to-http", "--name", "demo-channel", "--message-type", "ADT^A01", "--out", outDir})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
