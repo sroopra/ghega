@@ -141,6 +141,7 @@ func validateAndTest(path string) error {
 		return fmt.Errorf("load test fixtures: %w", err)
 	}
 
+	allPassed := true
 	for _, fixture := range fixtures {
 		result, err := channel.RunTest(fixture, chParsed.Mappings)
 		if err != nil {
@@ -149,6 +150,7 @@ func validateAndTest(path string) error {
 		if result.Passed {
 			fmt.Printf("  %sPASS%s %s\n", colorGreen, colorReset, result.Name)
 		} else {
+			allPassed = false
 			fmt.Printf("  %sFAIL%s %s: %s\n", colorRed, colorReset, result.Name, strings.Join(result.Errors, "; "))
 		}
 		for _, w := range result.Warnings {
@@ -156,5 +158,8 @@ func validateAndTest(path string) error {
 		}
 	}
 
+	if !allPassed {
+		return fmt.Errorf("one or more tests failed")
+	}
 	return nil
 }

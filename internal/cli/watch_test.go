@@ -160,6 +160,50 @@ tests:
 	}
 }
 
+func TestValidateAndTest_FailingTest(t *testing.T) {
+	dir := t.TempDir()
+	chPath := filepath.Join(dir, "channel.yaml")
+	chYAML := `name: validate-test-fail
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+    transform: copy
+tests:
+  - name: vt-fail
+    input: "MSH|^~\\&|GhegaApp|GhegaFac\rPID|1||WRONG_MRN\r"
+    expected:
+      patient_mrn: EXPECTED_MRN
+`
+	if err := os.WriteFile(chPath, []byte(chYAML), 0644); err != nil {
+		t.Fatalf("write channel: %v", err)
+	}
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err := validateAndTest(chPath)
+
+	w.Close()
+	os.Stdout = oldStdout
+	out, _ := io.ReadAll(r)
+	output := stripANSI(string(out))
+
+	if err == nil {
+		t.Fatal("expected error when test fails")
+	}
+	if !strings.Contains(err.Error(), "one or more tests failed") {
+		t.Errorf("expected 'one or more tests failed' error, got: %v", err)
+	}
+	if !strings.Contains(output, "FAIL vt-fail") {
+		t.Errorf("expected FAIL vt-fail, got:\n%s", output)
+	}
+}
+
 func TestValidateAndTest_InvalidChannel(t *testing.T) {
 	dir := t.TempDir()
 	chPath := filepath.Join(dir, "channel.yaml")
