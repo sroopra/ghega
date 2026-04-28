@@ -49,7 +49,8 @@ func TestIntegration_GenerateValidateTestDeployDiffRollback(t *testing.T) {
 	}
 	edited := string(data)
 	edited = strings.Replace(edited, "patient_mrn", "patient_id", 1)
-	editPath := filepath.Join(dir, "edited-channel.yaml")
+	edited = strings.Replace(edited, "patient_mrn: SYNTHETIC_MRN_123456", "patient_id: SYNTHETIC_MRN_123456", 1)
+	editPath := filepath.Join(outDir, "edited-channel.yaml")
 	if err := os.WriteFile(editPath, []byte(edited), 0644); err != nil {
 		t.Fatalf("write edited channel: %v", err)
 	}
@@ -69,22 +70,22 @@ func TestIntegration_GenerateValidateTestDeployDiffRollback(t *testing.T) {
 		t.Errorf("edit-to-test took %s, want under 5s", elapsed)
 	}
 
-	// 8. Deploy edited channel.
-	second, err := channel.Deploy(editPath, store)
-	if err != nil {
-		t.Fatalf("deploy edited failed: %v", err)
-	}
-	if second.Hash == first.Hash {
-		t.Fatal("expected different hash after edit")
-	}
-
-	// 9. Diff should detect change.
+	// 8. Diff should detect change (before deploying edited channel).
 	diffResult, err := channel.DiffLocal(editPath, store)
 	if err != nil {
 		t.Fatalf("diff failed: %v", err)
 	}
 	if diffResult.Identical {
 		t.Error("expected diff to show changes, but got identical")
+	}
+
+	// 9. Deploy edited channel.
+	second, err := channel.Deploy(editPath, store)
+	if err != nil {
+		t.Fatalf("deploy edited failed: %v", err)
+	}
+	if second.Hash == first.Hash {
+		t.Fatal("expected different hash after edit")
 	}
 
 	// 10. Rollback.

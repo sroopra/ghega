@@ -140,8 +140,9 @@ policies:
 func buildSyntheticHL7(messageType string) string {
 	// All data is synthetic and clearly marked as such.
 	// No real patient names, addresses, or identifiers are used.
+	hl7Type := strings.Replace(messageType, "_", "^", 1)
 	segments := []string{
-		fmt.Sprintf("MSH|^~\\&|GHEGA_SENDER|GHEGA_FACILITY|GHEGA_RECEIVER|GHEGA_FACILITY|%s||%s|12345|P|2.5", time.Now().UTC().Format("20060102150405"), messageType),
+		fmt.Sprintf("MSH|^~\\&|GHEGA_SENDER|GHEGA_FACILITY|GHEGA_RECEIVER|GHEGA_FACILITY|%s||%s|12345|P|2.5", time.Now().UTC().Format("20060102150405"), hl7Type),
 		"EVN|A01|20240101000000|||",
 		"PID|1||SYNTHETIC_MRN_123456^^^GHEGA_FACILITY^MR||TESTPATIENT^SYNTHETIC||19800101|M|||123 SYNTHETIC STREET^^SYNTHETIC CITY^ST^12345||555-0100||||||||||||||||||||",
 		"PV1|1|I|GHEGA_WARD^GHEGA_ROOM^1||||||||||||||||||||||||||||||||||||||||||20240101000000",
@@ -151,8 +152,9 @@ func buildSyntheticHL7(messageType string) string {
 
 func buildMinimalHL7(messageType string) string {
 	// Minimal HL7 message with only MSH and EVN — no PID segment.
+	hl7Type := strings.Replace(messageType, "_", "^", 1)
 	segments := []string{
-		fmt.Sprintf("MSH|^~\\&|GHEGA_SENDER|GHEGA_FACILITY|GHEGA_RECEIVER|GHEGA_FACILITY|%s||%s|12346|P|2.5", time.Now().UTC().Format("20060102150405"), messageType),
+		fmt.Sprintf("MSH|^~\\&|GHEGA_SENDER|GHEGA_FACILITY|GHEGA_RECEIVER|GHEGA_FACILITY|%s||%s|12346|P|2.5", time.Now().UTC().Format("20060102150405"), hl7Type),
 		"EVN|A01|20240101000000|||",
 	}
 	return strings.Join(segments, "\r") + "\r"
