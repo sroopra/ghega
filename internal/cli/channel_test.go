@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sroopra/ghega/pkg/channelstore"
 )
 
 func TestChannelTest_AllPass(t *testing.T) {
@@ -182,5 +184,315 @@ tests:
 	}
 	if !strings.Contains(string(out), "PASS file-fixture") {
 		t.Errorf("expected PASS file-fixture, got:\n%s", string(out))
+	}
+}
+
+func TestChannelDeploy(t *testing.T) {
+	dir := t.TempDir()
+	chPath := filepath.Join(dir, "channel.yaml")
+	chYAML := `name: deploy-ch
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+`
+	os.WriteFile(chPath, []byte(chYAML), 0644)
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	channelStoreOverride = channelstore.NewInMemoryStore()
+	defer func() { channelStoreOverride = nil }()
+
+	err := runChannelDeploy([]string{chPath})
+
+	w.Close()
+	os.Stdout = oldStdout
+	out, _ := io.ReadAll(r)
+
+	if err != nil {
+		t.Fatalf("runChannelDeploy: %v", err)
+	}
+	if !strings.Contains(string(out), "Deployed deploy-ch revision 1 hash") {
+		t.Errorf("expected deploy output, got:\n%s", string(out))
+	}
+}
+
+func TestChannelDeploy_Idempotent(t *testing.T) {
+	dir := t.TempDir()
+	chPath := filepath.Join(dir, "channel.yaml")
+	chYAML := `name: deploy-ch
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+`
+	os.WriteFile(chPath, []byte(chYAML), 0644)
+
+	channelStoreOverride = channelstore.NewInMemoryStore()
+	defer func() { channelStoreOverride = nil }()
+	_ = runChannelDeploy([]string{chPath})
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err := runChannelDeploy([]string{chPath})
+
+	w.Close()
+	os.Stdout = oldStdout
+	out, _ := io.ReadAll(r)
+
+	if err != nil {
+		t.Fatalf("runChannelDeploy: %v", err)
+	}
+	if !strings.Contains(string(out), "is already at revision") {
+		t.Errorf("expected no-op output, got:\n%s", string(out))
+	}
+}
+
+func TestChannelDiff_NotDeployed(t *testing.T) {
+	dir := t.TempDir()
+	chPath := filepath.Join(dir, "channel.yaml")
+	chYAML := `name: diff-ch
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+`
+	os.WriteFile(chPath, []byte(chYAML), 0644)
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	channelStoreOverride = channelstore.NewInMemoryStore()
+	defer func() { channelStoreOverride = nil }()
+
+	err := runChannelDiff([]string{chPath})
+
+	w.Close()
+	os.Stdout = oldStdout
+	out, _ := io.ReadAll(r)
+
+	if err != nil {
+		t.Fatalf("runChannelDiff: %v", err)
+	}
+	if !strings.Contains(string(out), "has never been deployed") {
+		t.Errorf("expected not-deployed output, got:\n%s", string(out))
+	}
+}
+
+func TestChannelDiff_Identical(t *testing.T) {
+	dir := t.TempDir()
+	chPath := filepath.Join(dir, "channel.yaml")
+	chYAML := `name: diff-ch
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+`
+	os.WriteFile(chPath, []byte(chYAML), 0644)
+
+	channelStoreOverride = channelstore.NewInMemoryStore()
+	defer func() { channelStoreOverride = nil }()
+
+	if err := runChannelDeploy([]string{chPath}); err != nil {
+		t.Fatalf("deploy: %v", err)
+	}
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err := runChannelDiff([]string{chPath})
+
+	w.Close()
+	os.Stdout = oldStdout
+	out, _ := io.ReadAll(r)
+
+	if err != nil {
+		t.Fatalf("runChannelDiff: %v", err)
+	}
+	if !strings.Contains(string(out), "No changes") {
+		t.Errorf("expected identical output, got:\n%s", string(out))
+	}
+}
+
+func TestChannelDiff_Different(t *testing.T) {
+	dir := t.TempDir()
+	chPath := filepath.Join(dir, "channel.yaml")
+	chYAML := `name: diff-ch
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+`
+	os.WriteFile(chPath, []byte(chYAML), 0644)
+
+	channelStoreOverride = channelstore.NewInMemoryStore()
+	defer func() { channelStoreOverride = nil }()
+
+	if err := runChannelDeploy([]string{chPath}); err != nil {
+		t.Fatalf("deploy: %v", err)
+	}
+
+	chYAML2 := `name: diff-ch
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+  - source: MSH-9.1
+    target: message_type
+`
+	os.WriteFile(chPath, []byte(chYAML2), 0644)
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err := runChannelDiff([]string{chPath})
+
+	w.Close()
+	os.Stdout = oldStdout
+	out, _ := io.ReadAll(r)
+
+	if err != nil {
+		t.Fatalf("runChannelDiff: %v", err)
+	}
+	if !strings.Contains(string(out), "Local:") {
+		t.Errorf("expected diff output with Local hash, got:\n%s", string(out))
+	}
+	if !strings.Contains(string(out), "Deployed:") {
+		t.Errorf("expected diff output with Deployed hash, got:\n%s", string(out))
+	}
+}
+
+func TestChannelRollback(t *testing.T) {
+	dir := t.TempDir()
+	chPath := filepath.Join(dir, "channel.yaml")
+	chYAML := `name: roll-ch
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+`
+	os.WriteFile(chPath, []byte(chYAML), 0644)
+
+	channelStoreOverride = channelstore.NewInMemoryStore()
+	defer func() { channelStoreOverride = nil }()
+
+	if err := runChannelDeploy([]string{chPath}); err != nil {
+		t.Fatalf("first deploy: %v", err)
+	}
+
+	chYAML2 := `name: roll-ch
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+  - source: MSH-9.1
+    target: message_type
+`
+	os.WriteFile(chPath, []byte(chYAML2), 0644)
+	if err := runChannelDeploy([]string{chPath}); err != nil {
+		t.Fatalf("second deploy: %v", err)
+	}
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err := runChannelRollback([]string{"roll-ch", "--to", ""})
+
+	w.Close()
+	os.Stdout = oldStdout
+	out, _ := io.ReadAll(r)
+
+	if err != nil {
+		t.Fatalf("runChannelRollback: %v", err)
+	}
+	if !strings.Contains(string(out), "Rolled back roll-ch to hash") {
+		t.Errorf("expected rollback output, got:\n%s", string(out))
+	}
+}
+
+func TestChannelRollback_Auto(t *testing.T) {
+	dir := t.TempDir()
+	chPath := filepath.Join(dir, "channel.yaml")
+	chYAML1 := `name: roll-ch
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+`
+	os.WriteFile(chPath, []byte(chYAML1), 0644)
+
+	channelStoreOverride = channelstore.NewInMemoryStore()
+	defer func() { channelStoreOverride = nil }()
+
+	if err := runChannelDeploy([]string{chPath}); err != nil {
+		t.Fatalf("first deploy: %v", err)
+	}
+
+	chYAML2 := `name: roll-ch
+source:
+  type: mllp
+destination:
+  type: http
+mappings:
+  - source: PID-3.1
+    target: patient_mrn
+  - source: MSH-9.1
+    target: message_type
+`
+	os.WriteFile(chPath, []byte(chYAML2), 0644)
+	if err := runChannelDeploy([]string{chPath}); err != nil {
+		t.Fatalf("second deploy: %v", err)
+	}
+
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	err := runChannelRollback([]string{"roll-ch"})
+
+	w.Close()
+	os.Stdout = oldStdout
+	out, _ := io.ReadAll(r)
+
+	if err != nil {
+		t.Fatalf("runChannelRollback: %v", err)
+	}
+	if !strings.Contains(string(out), "Rolled back roll-ch to hash") {
+		t.Errorf("expected rollback output, got:\n%s", string(out))
 	}
 }
