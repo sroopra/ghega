@@ -10,9 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sroopra/ghega/internal/alerts"
 	"github.com/sroopra/ghega/pkg/messagestore"
 	"github.com/sroopra/ghega/pkg/payloadref"
 )
+
+func newTestAlertStore() alerts.AlertStore {
+	return alerts.NewInMemoryAlertStore()
+}
 
 func mustSaveMessage(t *testing.T, store messagestore.Store, env *payloadref.Envelope, payload []byte) {
 	t.Helper()
@@ -24,7 +29,7 @@ func mustSaveMessage(t *testing.T, store messagestore.Store, env *payloadref.Env
 
 func TestHealthz(t *testing.T) {
 	store := messagestore.NewInMemoryStore()
-	srv := New(store)
+	srv := New(store, newTestAlertStore())
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
@@ -46,7 +51,7 @@ func TestHealthz(t *testing.T) {
 
 func TestChannels(t *testing.T) {
 	store := messagestore.NewInMemoryStore()
-	srv := New(store)
+	srv := New(store, newTestAlertStore())
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
@@ -77,7 +82,7 @@ func TestChannels(t *testing.T) {
 
 func TestListMessages(t *testing.T) {
 	store := messagestore.NewInMemoryStore()
-	srv := New(store)
+	srv := New(store, newTestAlertStore())
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
@@ -116,7 +121,7 @@ func TestListMessages(t *testing.T) {
 
 func TestListMessagesByChannel(t *testing.T) {
 	store := messagestore.NewInMemoryStore()
-	srv := New(store)
+	srv := New(store, newTestAlertStore())
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
@@ -155,7 +160,7 @@ func TestListMessagesByChannel(t *testing.T) {
 
 func TestGetMessage(t *testing.T) {
 	store := messagestore.NewInMemoryStore()
-	srv := New(store)
+	srv := New(store, newTestAlertStore())
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
@@ -191,7 +196,7 @@ func TestGetMessage(t *testing.T) {
 
 func TestGetMessage_NotFound(t *testing.T) {
 	store := messagestore.NewInMemoryStore()
-	srv := New(store)
+	srv := New(store, newTestAlertStore())
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
@@ -208,7 +213,7 @@ func TestGetMessage_NotFound(t *testing.T) {
 
 func TestAuthMiddleware_RejectsInvalidBearer(t *testing.T) {
 	store := messagestore.NewInMemoryStore()
-	srv := New(store)
+	srv := New(store, newTestAlertStore())
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
@@ -231,7 +236,7 @@ func TestAuthMiddleware_RejectsInvalidBearer(t *testing.T) {
 
 func TestAuthMiddleware_AllowsValidRequest(t *testing.T) {
 	store := messagestore.NewInMemoryStore()
-	srv := New(store)
+	srv := New(store, newTestAlertStore())
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
@@ -248,7 +253,7 @@ func TestAuthMiddleware_AllowsValidRequest(t *testing.T) {
 
 func TestRedeliver_Returns501(t *testing.T) {
 	store := messagestore.NewInMemoryStore()
-	srv := New(store)
+	srv := New(store, newTestAlertStore())
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
@@ -265,7 +270,7 @@ func TestRedeliver_Returns501(t *testing.T) {
 
 func TestReplay_Returns501(t *testing.T) {
 	store := messagestore.NewInMemoryStore()
-	srv := New(store)
+	srv := New(store, newTestAlertStore())
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
@@ -282,7 +287,7 @@ func TestReplay_Returns501(t *testing.T) {
 
 func TestCORSHeaders(t *testing.T) {
 	store := messagestore.NewInMemoryStore()
-	srv := New(store)
+	srv := New(store, newTestAlertStore())
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
@@ -308,5 +313,67 @@ func TestCORSHeaders(t *testing.T) {
 	}
 	if got := resp.Header.Get("Access-Control-Allow-Headers"); !strings.Contains(got, "Authorization") {
 		t.Errorf("Access-Control-Allow-Headers missing Authorization: %q", got)
+	}
+}
+
+func TestListAlerts(t *testing.T) {
+	store := messagestore.NewInMemoryStore()
+	alertStore := newTestAlertStore()
+	srv := New(store, alertStore)
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	_ = alertStore.Create(&alerts.Alert{
+		ID:        "alert-1",
+		ChannelID: "ch-1",
+		Severity:  alerts.SeverityWarning,
+		Message:   "test alert",
+		CreatedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+	})
+
+	resp, err := http.Get(ts.URL + "/api/v1/alerts")
+	if err != nil {
+		t.Fatalf("list alerts: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var result []alerts.Alert
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("decode alerts: %v", err)
+	}
+	if len(result) != 1 {
+		t.Fatalf("len(alerts) = %d, want 1", len(result))
+	}
+	if result[0].ID != "alert-1" {
+		t.Errorf("alert id = %q, want %q", result[0].ID, "alert-1")
+	}
+	if result[0].Severity != alerts.SeverityWarning {
+		t.Errorf("severity = %q, want %q", result[0].Severity, alerts.SeverityWarning)
+	}
+}
+
+func TestAPIRoutesTakePrecedenceOverStaticFiles(t *testing.T) {
+	store := messagestore.NewInMemoryStore()
+	srv := New(store, newTestAlertStore())
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/v1/channels")
+	if err != nil {
+		t.Fatalf("channels request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "adt-a01") {
+		t.Errorf("body missing expected channel id: %s", body)
 	}
 }
