@@ -23,6 +23,8 @@ func Execute(args []string) error {
 		return runGenerate(args[1:])
 	case "watch":
 		return runWatch(args[1:])
+	case "migrate":
+		return runMigrate(args[1:])
 	case "--help", "-h", "help":
 		printUsage()
 		return nil
@@ -48,6 +50,7 @@ Commands:
   message            Message management commands
   generate           Generate artifacts
   watch              Watch a directory for channel changes
+  migrate mirth      Migrate Mirth Connect channels to Ghega
 
 Use "ghega <command> --help" for more information about a command.`)
 }
