@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/sroopra/ghega/pkg/channel"
+	"github.com/sroopra/ghega/pkg/channelstore"
 	"gopkg.in/yaml.v3"
 )
 
@@ -20,6 +21,12 @@ func runChannel(args []string) error {
 		return runChannelValidate(args[1:])
 	case "test":
 		return runChannelTest(args[1:])
+	case "deploy":
+		return runChannelDeploy(args[1:])
+	case "diff":
+		return runChannelDiff(args[1:])
+	case "rollback":
+		return runChannelRollback(args[1:])
 	default:
 		return fmt.Errorf("unknown channel subcommand: %s", args[0])
 	}
@@ -123,5 +130,95 @@ func runChannelTest(args []string) error {
 		os.Exit(1)
 	}
 
+	return nil
+}
+
+func initChannelStore() (channelstore.ChannelStore, error) {
+	dsn := os.Getenv("GHEGA_DATABASE_URL")
+	if dsn == "" {
+		dsn = "ghega.db"
+	}
+	return channelstore.NewSQLiteStore(dsn)
+}
+
+func runChannelDeploy(args []string) error {
+	fs := flag.NewFlagSet("deploy", flag.ExitOnError)
+	_ = fs.Parse(args)
+
+	if fs.NArg() == 0 {
+		return fmt.Errorf("usage: ghega channel deploy <path-to-channel.yaml>")
+	}
+
+	store, err := initChannelStore()
+	if err != nil {
+		return fmt.Errorf("init store: %w", err)
+	}
+
+	result, err := channel.Deploy(fs.Arg(0), store)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "deploy failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	if result.PreviousHash == "" {
+		fmt.Printf("Deployed %s revision %d hash %s\n", result.Name, result.Revision, result.Hash)
+	} else if result.PreviousHash == result.Hash {
+		fmt.Printf("%s is already at revision %d hash %s\n", result.Name, result.Revision, result.Hash)
+	} else {
+		fmt.Printf("Deployed %s revision %d hash %s (previous: %s)\n", result.Name, result.Revision, result.Hash, result.PreviousHash)
+	}
+	return nil
+}
+
+func runChannelDiff(args []string) error {
+	fs := flag.NewFlagSet("diff", flag.ExitOnError)
+	_ = fs.Parse(args)
+
+	if fs.NArg() == 0 {
+		return fmt.Errorf("usage: ghega channel diff <path-to-channel.yaml>")
+	}
+
+	store, err := initChannelStore()
+	if err != nil {
+		return fmt.Errorf("init store: %w", err)
+	}
+
+	result, err := channel.DiffLocal(fs.Arg(0), store)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "diff failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	if result.DeployedHash == "" {
+		fmt.Printf("Channel %s has never been deployed\n", result.ChannelName)
+	} else if result.Identical {
+		fmt.Printf("No changes — local matches deployed revision %s\n", result.DeployedHash)
+	} else {
+		fmt.Printf("Local:    %s\nDeployed: %s\nChannel %s has un-deployed changes.\n", result.LocalHash, result.DeployedHash, result.ChannelName)
+	}
+	return nil
+}
+
+func runChannelRollback(args []string) error {
+	fs := flag.NewFlagSet("rollback", flag.ExitOnError)
+	toHash := fs.String("to", "", "hash to rollback to")
+	_ = fs.Parse(args)
+
+	if fs.NArg() == 0 {
+		return fmt.Errorf("usage: ghega channel rollback <name> --to <hash>")
+	}
+
+	store, err := initChannelStore()
+	if err != nil {
+		return fmt.Errorf("init store: %w", err)
+	}
+
+	name := fs.Arg(0)
+	if err := channel.Rollback(name, *toHash, store); err != nil {
+		fmt.Fprintf(os.Stderr, "rollback failed: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Rolled back %s\n", name)
 	return nil
 }
