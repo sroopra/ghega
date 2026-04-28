@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/sroopra/ghega/internal/alerts"
 	"github.com/sroopra/ghega/internal/engine"
 	"github.com/sroopra/ghega/internal/server"
 	"github.com/sroopra/ghega/pkg/messagestore"
@@ -35,7 +36,8 @@ func runServe(args []string) error {
 	}
 
 	// Start HTTP API server.
-	srv := server.New(store)
+	alertStore := alerts.NewInMemoryAlertStore()
+	srv := server.New(store, alertStore)
 	httpSrv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", *port),
 		Handler: srv.Handler(),
