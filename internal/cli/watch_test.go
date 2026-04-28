@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -79,5 +80,31 @@ func TestWatch_InvalidChannelShowsValidationError(t *testing.T) {
 	// scanAndProcess should have tracked the file even though validation failed.
 	if len(mtimes) != 1 {
 		t.Fatalf("expected 1 tracked file, got %d", len(mtimes))
+	}
+}
+
+func TestWatch_ExitsOnSIGINT(t *testing.T) {
+	dir := t.TempDir()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runWatch([]string{dir})
+	}()
+
+	// Give runWatch time to start the ticker and signal handler.
+	time.Sleep(50 * time.Millisecond)
+
+	// Send SIGINT to the current process.
+	if err := syscall.Kill(syscall.Getpid(), syscall.SIGINT); err != nil {
+		t.Fatalf("failed to send SIGINT: %v", err)
+	}
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("expected nil error on SIGINT, got %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("runWatch did not exit after SIGINT")
 	}
 }

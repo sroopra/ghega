@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -224,6 +225,16 @@ func runChannelRollback(args []string) error {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Rolled back %s\n", name)
+	hash := *toHash
+	if hash == "" {
+		rec, err := store.GetChannel(context.Background(), name)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "rollback failed: %v\n", err)
+			os.Exit(1)
+		}
+		hash = rec.Hash
+	}
+
+	fmt.Printf("Rolled back %s to hash %s\n", name, hash)
 	return nil
 }

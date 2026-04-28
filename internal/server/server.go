@@ -7,18 +7,20 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/sroopra/ghega/internal/alerts"
 	"github.com/sroopra/ghega/pkg/messagestore"
 	"github.com/sroopra/ghega/pkg/payloadref"
 )
 
 // Server holds dependencies for the HTTP API.
 type Server struct {
-	store messagestore.Store
+	store      messagestore.Store
+	alertStore alerts.AlertStore
 }
 
-// New creates a new Server with the given store.
-func New(store messagestore.Store) *Server {
-	return &Server{store: store}
+// New creates a new Server with the given store and alertStore.
+func New(store messagestore.Store, alertStore alerts.AlertStore) *Server {
+	return &Server{store: store, alertStore: alertStore}
 }
 
 // messageMetadataResponse is the JSON shape expected by the UI.
@@ -58,12 +60,16 @@ func (s *Server) Handler() http.Handler {
 	apiMux.HandleFunc("POST /messages/{id}/redeliver", s.handleRedeliver)
 	apiMux.HandleFunc("POST /messages/{id}/replay", s.handleReplay)
 	apiMux.HandleFunc("GET /channels", s.handleListChannels)
+	apiMux.HandleFunc("GET /alerts", s.handleListAlerts)
 
 	wrapped := CORSMiddleware(AuthMiddleware(apiMux))
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", wrapped))
 	mux.HandleFunc("/healthz", s.handleHealthz)
+
+	fs := http.FileServer(http.Dir("ui/dist"))
+	mux.Handle("/", fs)
 
 	return mux
 }
@@ -137,6 +143,15 @@ func (s *Server) handleListChannels(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, []channelResponse{
 		{ID: "adt-a01", Name: "ADT A01 MLLP to HTTP"},
 	})
+}
+
+func (s *Server) handleListAlerts(w http.ResponseWriter, r *http.Request) {
+	alertsList, err := s.alertStore.List()
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "failed to list alerts")
+		return
+	}
+	writeJSON(w, alertsList)
 }
 
 func (s *Server) handleRedeliver(w http.ResponseWriter, r *http.Request) {
