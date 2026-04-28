@@ -183,3 +183,27 @@ func TestGenerateMLLPToHTTP_ContainsGhegaHeader(t *testing.T) {
 		}
 	}
 }
+
+func TestGenerateMLLPToHTTP_MinimalHL7_HasCaretSeparatedMessageType(t *testing.T) {
+	tmpDir := t.TempDir()
+	outDir := filepath.Join(tmpDir, "generated")
+
+	err := RunChannelGenerate([]string{"mllp-to-http", "--name", "demo-channel", "--message-type", "ADT_A01", "--out", outDir})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	minimalPath := filepath.Join(outDir, "fixtures", "minimal.hl7")
+	data, err := os.ReadFile(minimalPath)
+	if err != nil {
+		t.Fatalf("reading minimal.hl7: %v", err)
+	}
+
+	content := string(data)
+	if strings.Contains(content, "ADT_A01") {
+		t.Errorf("minimal.hl7 contains underscore-separated message type ADT_A01; expected ADT^A01")
+	}
+	if !strings.Contains(content, "ADT^A01") {
+		t.Errorf("minimal.hl7 does not contain caret-separated message type ADT^A01")
+	}
+}
