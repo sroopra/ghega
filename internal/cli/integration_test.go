@@ -57,10 +57,12 @@ func TestEndToEnd_EditToTestUnder5Seconds(t *testing.T) {
 		t.Error("deployed YAML does not match original")
 	}
 
+	// h. Test the edited channel.
+	// Measure the time from step (f) edit to step (h) test completion.
+	editToTestStart := time.Now()
+
 	// f. Edit the channel YAML (e.g., change a mapping target).
 	editedData := strings.ReplaceAll(string(originalData), "patient_mrn", "patient_id")
-	// Update expected test values to match the new target key.
-	editedData = strings.ReplaceAll(editedData, "      patient_id: SYNTHETIC_MRN_123456", "      patient_id: SYNTHETIC_MRN_123456")
 	if err := os.WriteFile(channelPath, []byte(editedData), 0644); err != nil {
 		t.Fatalf("write edited channel: %v", err)
 	}
@@ -70,9 +72,6 @@ func TestEndToEnd_EditToTestUnder5Seconds(t *testing.T) {
 		t.Fatalf("validate edited: %v", err)
 	}
 
-	// h. Test the edited channel.
-	// Measure the time from step (f) edit to step (h) test completion.
-	editToTestStart := time.Now()
 	if err := runChannelTest([]string{channelPath}); err != nil {
 		t.Fatalf("test edited: %v", err)
 	}
