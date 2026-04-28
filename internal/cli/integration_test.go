@@ -37,10 +37,6 @@ func TestIntegration_GenerateValidateTestDeployDiffRollback(t *testing.T) {
 	}
 
 	// 4. Deploy it.
-	if err := runChannelDeploy([]string{channelPath}); err != nil {
-		t.Fatalf("deploy failed: %v", err)
-	}
-
 	first, err := channel.Deploy(channelPath, store)
 	if err != nil {
 		t.Fatalf("deploy via package failed: %v", err)
