@@ -1,11 +1,9 @@
 package cli
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -55,10 +53,9 @@ tests:
 }
 
 func TestChannelTest_WithFailure(t *testing.T) {
-	if os.Getenv("BE_TEST_CHANNEL_TEST_FAIL") == "1" {
-		dir := t.TempDir()
-		chPath := filepath.Join(dir, "channel.yaml")
-		chYAML := `name: adt-a01
+	dir := t.TempDir()
+	chPath := filepath.Join(dir, "channel.yaml")
+	chYAML := `name: adt-a01
 source:
   type: mllp
 destination:
@@ -73,33 +70,28 @@ tests:
     expected:
       patient_mrn: WRONG
 `
-		if err := os.WriteFile(chPath, []byte(chYAML), 0644); err != nil {
-			t.Fatalf("write channel: %v", err)
-		}
-		_ = runChannelTest([]string{chPath})
-		return
+	if err := os.WriteFile(chPath, []byte(chYAML), 0644); err != nil {
+		t.Fatalf("write channel: %v", err)
 	}
 
-	cmd := exec.Command(os.Args[0], "-test.run=TestChannelTest_WithFailure")
-	cmd.Env = append(os.Environ(), "BE_TEST_CHANNEL_TEST_FAIL=1")
-	var stdout bytes.Buffer
-	cmd.Stdout = &stdout
-	err := cmd.Run()
+	r, w, _ := os.Pipe()
+	oldStdout := os.Stdout
+	os.Stdout = w
 
-	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-		// expected
-	} else if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	} else {
-		t.Fatalf("expected exit code 1, got 0")
-	}
+	err := runChannelTest([]string{chPath})
 
-	out := stdout.String()
-	if !strings.Contains(out, "FAIL basic-fail:") {
-		t.Errorf("expected FAIL basic-fail, got:\n%s", out)
+	w.Close()
+	os.Stdout = oldStdout
+	out, _ := io.ReadAll(r)
+
+	if err == nil {
+		t.Fatalf("expected error, got nil")
 	}
-	if !strings.Contains(out, `expected "patient_mrn" = "WRONG"`) {
-		t.Errorf("expected error detail, got:\n%s", out)
+	if !strings.Contains(string(out), "FAIL basic-fail:") {
+		t.Errorf("expected FAIL basic-fail, got:\n%s", string(out))
+	}
+	if !strings.Contains(string(out), `expected "patient_mrn" = "WRONG"`) {
+		t.Errorf("expected error detail, got:\n%s", string(out))
 	}
 }
 
