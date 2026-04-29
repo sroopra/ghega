@@ -525,6 +525,99 @@ func TestConvertChannel_ScriptsPresent(t *testing.T) {
 	}
 }
 
+func TestConvertChannel_EmptyScriptsNoWarning(t *testing.T) {
+	xml := `<?xml version="1.0" encoding="UTF-8"?>
+<channel version="3.12.0">
+  <id>ch-011</id>
+  <name>Empty_Scripts</name>
+  <description>Steps with empty scripts</description>
+  <enabled>true</enabled>
+  <revision>1</revision>
+  <sourceConnector>
+    <name>MLLP Source</name>
+    <enabled>true</enabled>
+    <properties class="com.mirth.connect.connectors.tcp.TcpListenerProperties">
+      <listenerConnectorProperties>
+        <host>0.0.0.0</host>
+        <port>6661</port>
+      </listenerConnectorProperties>
+    </properties>
+    <transformer>
+      <steps>
+        <step>
+          <sequenceNumber>0</sequenceNumber>
+          <name>Empty Step</name>
+          <script></script>
+          <type>JavaScript</type>
+        </step>
+      </steps>
+    </transformer>
+    <filter>
+      <rules>
+        <rule>
+          <sequenceNumber>0</sequenceNumber>
+          <name>Empty Rule</name>
+          <script>   </script>
+          <operator>AND</operator>
+        </rule>
+      </rules>
+    </filter>
+  </sourceConnector>
+  <destinationConnectors>
+    <connector>
+      <name>HTTP Destination</name>
+      <enabled>true</enabled>
+      <properties class="com.mirth.connect.connectors.http.HttpDispatcherProperties">
+        <host>example.com</host>
+        <port>80</port>
+        <method>POST</method>
+      </properties>
+      <transformer>
+        <steps>
+          <step>
+            <sequenceNumber>0</sequenceNumber>
+            <name>Empty Dest Step</name>
+            <script></script>
+            <type>JavaScript</type>
+          </step>
+        </steps>
+      </transformer>
+      <filter>
+        <rules>
+          <rule>
+            <sequenceNumber>0</sequenceNumber>
+            <name>Empty Dest Rule</name>
+            <script></script>
+            <operator>AND</operator>
+          </rule>
+        </rules>
+      </filter>
+    </connector>
+  </destinationConnectors>
+  <preprocessingScript></preprocessingScript>
+  <postprocessingScript>   </postprocessingScript>
+  <deployScript></deployScript>
+  <undeployScript></undeployScript>
+  <properties/>
+</channel>`
+
+	mch, err := mirthxml.ParseChannel([]byte(xml))
+	if err != nil {
+		t.Fatalf("parse channel: %v", err)
+	}
+
+	res, err := ConvertChannel(mch)
+	if err != nil {
+		t.Fatalf("convert channel: %v", err)
+	}
+
+	for _, w := range res.Warnings {
+		if w == "JavaScript transformers/filters are present but not converted in this step" {
+			t.Errorf("unexpected script warning for empty scripts: %v", res.Warnings)
+		}
+	}
+}
+
 func TestConvertChannel_DBConnectors(t *testing.T) {
 	mch, err := mirthxml.ParseChannel([]byte(syntheticDBChannel))
 	if err != nil {
