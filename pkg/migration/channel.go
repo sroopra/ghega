@@ -143,9 +143,36 @@ func convertSource(src mirthxml.SourceConnector) (channel.Source, string, []stri
 		}, class, warnings
 
 	case "com.mirth.connect.connectors.jdbc.DatabaseReaderProperties":
-		warnings = append(warnings,
-			"Database Reader source is mapped to type 'db' but configuration is not fully extracted")
-		return channel.Source{Type: "db"}, class, warnings
+		var props mirthxml.DatabaseReaderProperties
+		_ = src.Properties.UnmarshalInto(&props)
+		cfg := map[string]any{
+			"driver": props.Driver,
+			"url":    props.URL,
+			"query":  props.Query,
+		}
+		if props.Username != "" {
+			cfg["username"] = props.Username
+		}
+		if props.Password != "" {
+			warnings = append(warnings, "Password field detected in connector config — review and move to secrets management")
+		}
+		return channel.Source{Type: "db", Config: cfg}, class, warnings
+
+	case "com.mirth.connect.connectors.sftp.SftpReceiverProperties":
+		var props mirthxml.SftpReceiverProperties
+		_ = src.Properties.UnmarshalInto(&props)
+		cfg := map[string]any{
+			"host": props.Host,
+			"port": props.Port,
+			"path": props.Path,
+		}
+		if props.Username != "" {
+			cfg["username"] = props.Username
+		}
+		if props.Password != "" {
+			warnings = append(warnings, "Password field detected in connector config — review and move to secrets management")
+		}
+		return channel.Source{Type: "sftp", Config: cfg}, class, warnings
 
 	default:
 		warnings = append(warnings,
@@ -192,7 +219,7 @@ func convertDestination(dest mirthxml.DestinationConnector) (channel.Destination
 		var props mirthxml.HttpDispatcherProperties
 		_ = dest.Properties.UnmarshalInto(&props)
 		cfg := map[string]any{
-			"url":    buildURL(props.Host, props.Port),
+			"url":    buildURL(props.Host, props.Port, props.Secure),
 			"method": props.Method,
 		}
 		if props.Method == "" {
@@ -212,9 +239,35 @@ func convertDestination(dest mirthxml.DestinationConnector) (channel.Destination
 		}, warnings
 
 	case "com.mirth.connect.connectors.jdbc.DatabaseWriterProperties":
-		warnings = append(warnings,
-			"Database Writer destination is mapped to type 'db' but configuration is not fully extracted")
-		return channel.Destination{Type: "db"}, warnings
+		var props mirthxml.DatabaseWriterProperties
+		_ = dest.Properties.UnmarshalInto(&props)
+		cfg := map[string]any{
+			"driver": props.Driver,
+			"url":    props.URL,
+		}
+		if props.Username != "" {
+			cfg["username"] = props.Username
+		}
+		if props.Password != "" {
+			warnings = append(warnings, "Password field detected in connector config — review and move to secrets management")
+		}
+		return channel.Destination{Type: "db", Config: cfg}, warnings
+
+	case "com.mirth.connect.connectors.sftp.SftpDispatcherProperties":
+		var props mirthxml.SftpDispatcherProperties
+		_ = dest.Properties.UnmarshalInto(&props)
+		cfg := map[string]any{
+			"host": props.Host,
+			"port": props.Port,
+			"path": props.Path,
+		}
+		if props.Username != "" {
+			cfg["username"] = props.Username
+		}
+		if props.Password != "" {
+			warnings = append(warnings, "Password field detected in connector config — review and move to secrets management")
+		}
+		return channel.Destination{Type: "sftp", Config: cfg}, warnings
 
 	default:
 		warnings = append(warnings,
@@ -243,21 +296,25 @@ func sanitizeName(name string) string {
 	return s
 }
 
-// buildURL constructs a simple HTTP URL from host and port.
-func buildURL(host string, port int) string {
+// buildURL constructs a simple HTTP URL from host, port and a secure flag.
+// Limitation: this does not inspect the actual connector class beyond the
+// secure property; connectors that use TLS on non-standard ports may be
+// misclassified.
+func buildURL(host string, port int, secure bool) string {
 	if host == "" {
 		host = "localhost"
 	}
 	if port == 0 {
 		port = 80
 	}
-	if port == 80 {
-		return fmt.Sprintf("http://%s/", host)
+	scheme := "http"
+	if port == 443 || secure {
+		scheme = "https"
 	}
-	if port == 443 {
-		return fmt.Sprintf("https://%s/", host)
+	if (scheme == "http" && port == 80) || (scheme == "https" && port == 443) {
+		return fmt.Sprintf("%s://%s/", scheme, host)
 	}
-	return fmt.Sprintf("http://%s:%d/", host, port)
+	return fmt.Sprintf("%s://%s:%d/", scheme, host, port)
 }
 
 // buildFilePath constructs a file path from Mirth file connector properties.

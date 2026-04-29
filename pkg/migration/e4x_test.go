@@ -1,6 +1,7 @@
 package migration
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/sroopra/ghega/pkg/mapping"
@@ -189,6 +190,68 @@ func TestClassifyTransformerStep_ComplexRHS(t *testing.T) {
 	}
 	if p.Disposition != DispositionNeedsRewrite {
 		t.Errorf("expected needs_rewrite for complex RHS, got %s", p.Disposition)
+	}
+}
+
+func TestClassifyTransformerStep_ChannelMapAccess(t *testing.T) {
+	step := mirthxml.Step{Script: "channelMap.put('key', 'value'); var x = channelMap.get('key');"}
+	res := ClassifyTransformerStep(step)
+	foundPut := false
+	foundGet := false
+	for _, p := range res.Patterns {
+		if p.Category == CategoryChannelMapAccess {
+			if p.Disposition != DispositionNeedsRewrite {
+				t.Errorf("expected needs_rewrite for channelMap access, got %s", p.Disposition)
+			}
+			if strings.Contains(p.Description, "put") {
+				foundPut = true
+			}
+			if strings.Contains(p.Description, "get") {
+				foundGet = true
+			}
+			if p.RewriteTask == nil {
+				t.Errorf("expected rewrite task for channelMap access")
+			} else if !strings.Contains(p.RewriteTask.Description, "Go variables") && !strings.Contains(p.RewriteTask.Description, "channel configuration") {
+				t.Errorf("unexpected rewrite task description: %s", p.RewriteTask.Description)
+			}
+		}
+	}
+	if !foundPut {
+		t.Errorf("expected channelMap.put pattern")
+	}
+	if !foundGet {
+		t.Errorf("expected channelMap.get pattern")
+	}
+}
+
+func TestClassifyTransformerStep_GlobalMapAccess(t *testing.T) {
+	step := mirthxml.Step{Script: "globalMap.put('key', 'value'); var x = globalMap.get('key');"}
+	res := ClassifyTransformerStep(step)
+	foundPut := false
+	foundGet := false
+	for _, p := range res.Patterns {
+		if p.Category == CategoryGlobalMapAccess {
+			if p.Disposition != DispositionNeedsRewrite {
+				t.Errorf("expected needs_rewrite for globalMap access, got %s", p.Disposition)
+			}
+			if strings.Contains(p.Description, "put") {
+				foundPut = true
+			}
+			if strings.Contains(p.Description, "get") {
+				foundGet = true
+			}
+			if p.RewriteTask == nil {
+				t.Errorf("expected rewrite task for globalMap access")
+			} else if !strings.Contains(p.RewriteTask.Description, "Go variables") && !strings.Contains(p.RewriteTask.Description, "channel configuration") {
+				t.Errorf("unexpected rewrite task description: %s", p.RewriteTask.Description)
+			}
+		}
+	}
+	if !foundPut {
+		t.Errorf("expected globalMap.put pattern")
+	}
+	if !foundGet {
+		t.Errorf("expected globalMap.get pattern")
 	}
 }
 
