@@ -14,6 +14,8 @@ func runGenerate(args []string) error {
 	switch args[0] {
 	case "channel":
 		return generate.RunChannelGenerate(args[1:])
+	case "migration-task":
+		return generate.RunMigrationTaskGenerate(args[1:])
 	default:
 		return fmt.Errorf("unknown generate subcommand: %s", args[0])
 	}
