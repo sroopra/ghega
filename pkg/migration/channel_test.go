@@ -528,9 +528,9 @@ func TestConvertChannel_ScriptsPresent(t *testing.T) {
 func TestConvertChannel_EmptyScriptsNoWarning(t *testing.T) {
 	xml := `<?xml version="1.0" encoding="UTF-8"?>
 <channel version="3.12.0">
-  <id>ch-011</id>
+  <id>ch-empty</id>
   <name>Empty_Scripts</name>
-  <description>Steps with empty scripts</description>
+  <description>Steps and rules with empty scripts</description>
   <enabled>true</enabled>
   <revision>1</revision>
   <sourceConnector>
@@ -547,7 +547,7 @@ func TestConvertChannel_EmptyScriptsNoWarning(t *testing.T) {
         <step>
           <sequenceNumber>0</sequenceNumber>
           <name>Empty Step</name>
-          <script></script>
+          <script>   </script>
           <type>JavaScript</type>
         </step>
       </steps>
@@ -557,7 +557,7 @@ func TestConvertChannel_EmptyScriptsNoWarning(t *testing.T) {
         <rule>
           <sequenceNumber>0</sequenceNumber>
           <name>Empty Rule</name>
-          <script>   </script>
+          <script></script>
           <operator>AND</operator>
         </rule>
       </rules>
@@ -577,7 +577,7 @@ func TestConvertChannel_EmptyScriptsNoWarning(t *testing.T) {
           <step>
             <sequenceNumber>0</sequenceNumber>
             <name>Empty Dest Step</name>
-            <script></script>
+            <script>   </script>
             <type>JavaScript</type>
           </step>
         </steps>
@@ -587,17 +587,17 @@ func TestConvertChannel_EmptyScriptsNoWarning(t *testing.T) {
           <rule>
             <sequenceNumber>0</sequenceNumber>
             <name>Empty Dest Rule</name>
-            <script></script>
+            <script>   </script>
             <operator>AND</operator>
           </rule>
         </rules>
       </filter>
     </connector>
   </destinationConnectors>
-  <preprocessingScript></preprocessingScript>
-  <postprocessingScript>   </postprocessingScript>
+  <preprocessingScript>   </preprocessingScript>
+  <postprocessingScript></postprocessingScript>
   <deployScript></deployScript>
-  <undeployScript></undeployScript>
+  <undeployScript>   </undeployScript>
   <properties/>
 </channel>`
 
@@ -613,7 +613,7 @@ func TestConvertChannel_EmptyScriptsNoWarning(t *testing.T) {
 
 	for _, w := range res.Warnings {
 		if w == "JavaScript transformers/filters are present but not converted in this step" {
-			t.Errorf("unexpected script warning for empty scripts: %v", res.Warnings)
+			t.Errorf("unexpected script warning for empty/whitespace-only scripts")
 		}
 	}
 }
