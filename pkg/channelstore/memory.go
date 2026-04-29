@@ -170,3 +170,26 @@ func (s *InMemoryStore) ListDeploymentAudit(_ context.Context, channelName strin
 	}
 	return out, nil
 }
+
+// ListChannels returns the latest revision for each channel name.
+func (s *InMemoryStore) ListChannels(_ context.Context) ([]ChannelRecord, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	out := make([]ChannelRecord, 0, len(s.channels))
+	for _, revs := range s.channels {
+		if len(revs) == 0 {
+			continue
+		}
+		latest := revs[0]
+		for _, r := range revs {
+			if r.Revision > latest.Revision {
+				latest = r
+			}
+		}
+		cp := latest
+		cp.YAML = append([]byte(nil), cp.YAML...)
+		out = append(out, cp)
+	}
+	return out, nil
+}

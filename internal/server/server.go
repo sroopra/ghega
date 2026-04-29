@@ -12,6 +12,7 @@ import (
 
 	"github.com/sroopra/ghega"
 	"github.com/sroopra/ghega/internal/alerts"
+	"github.com/sroopra/ghega/pkg/channelstore"
 	"github.com/sroopra/ghega/pkg/messagestore"
 	"github.com/sroopra/ghega/pkg/migration"
 	"github.com/sroopra/ghega/pkg/payloadref"
@@ -22,12 +23,13 @@ import (
 type Server struct {
 	store         messagestore.Store
 	alertStore    alerts.AlertStore
+	channelStore  channelstore.ChannelStore
 	migrationsDir string
 }
 
 // New creates a new Server with the given store and alertStore.
-func New(store messagestore.Store, alertStore alerts.AlertStore) *Server {
-	return &Server{store: store, alertStore: alertStore}
+func New(store messagestore.Store, alertStore alerts.AlertStore, channelStore channelstore.ChannelStore) *Server {
+	return &Server{store: store, alertStore: alertStore, channelStore: channelStore}
 }
 
 // SetMigrationsDir configures the directory where migration reports are read from.
@@ -195,9 +197,25 @@ func (s *Server) handleGetMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListChannels(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, []channelResponse{
-		{ID: "adt-a01", Name: "ADT A01 MLLP to HTTP"},
-	})
+	if s.channelStore == nil {
+		writeJSON(w, []channelResponse{})
+		return
+	}
+
+	channels, err := s.channelStore.ListChannels(r.Context())
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "failed to list channels")
+		return
+	}
+
+	resp := make([]channelResponse, len(channels))
+	for i, ch := range channels {
+		resp[i] = channelResponse{
+			ID:   ch.Name,
+			Name: ch.Name,
+		}
+	}
+	writeJSON(w, resp)
 }
 
 func (s *Server) handleListAlerts(w http.ResponseWriter, r *http.Request) {

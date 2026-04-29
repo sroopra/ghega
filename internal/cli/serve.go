@@ -16,6 +16,7 @@ import (
 	"github.com/sroopra/ghega/internal/config"
 	"github.com/sroopra/ghega/internal/engine"
 	"github.com/sroopra/ghega/internal/server"
+	"github.com/sroopra/ghega/pkg/channelstore"
 	"github.com/sroopra/ghega/pkg/messagestore"
 	"github.com/sroopra/ghega/pkg/mllp"
 )
@@ -41,9 +42,14 @@ func runServe(args []string) error {
 		return fmt.Errorf("init store: %w", err)
 	}
 
+	chStore, err := initChannelStore()
+	if err != nil {
+		return fmt.Errorf("init channel store: %w", err)
+	}
+
 	// Start HTTP API server.
 	alertStore := alerts.NewInMemoryAlertStore()
-	srv := server.New(store, alertStore)
+	srv := server.New(store, alertStore, chStore)
 	srv.SetMigrationsDir(*migrationsDir)
 	httpSrv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", *port),
@@ -103,6 +109,20 @@ func initStore() (messagestore.Store, error) {
 	if err != nil {
 		slog.Warn("failed to open SQLite store, falling back to in-memory store", "error", err)
 		return messagestore.NewInMemoryStore(), nil
+	}
+	return store, nil
+}
+
+func initChannelStore() (channelstore.ChannelStore, error) {
+	dsn := os.Getenv("GHEGA_DATABASE_URL")
+	if dsn == "" {
+		dsn = "ghega.db"
+	}
+
+	store, err := channelstore.NewSQLiteStore(dsn)
+	if err != nil {
+		slog.Warn("failed to open SQLite channel store, falling back to in-memory store", "error", err)
+		return channelstore.NewInMemoryStore(), nil
 	}
 	return store, nil
 }

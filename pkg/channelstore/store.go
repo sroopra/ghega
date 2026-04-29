@@ -30,6 +30,9 @@ type ChannelStore interface {
 
 	// ListDeploymentAudit returns all audit entries for a channel ordered by timestamp desc.
 	ListDeploymentAudit(ctx context.Context, channelName string) ([]AuditRecord, error)
+
+	// ListChannels returns the latest revision for each channel name.
+	ListChannels(ctx context.Context) ([]ChannelRecord, error)
 }
 
 // ChannelRecord represents a single persisted channel revision.

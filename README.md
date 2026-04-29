@@ -45,6 +45,8 @@ This executes all Go tests (`go test ./...`) and validation checks, including ru
 
 ## Architecture
 
+Migration: `ghega migrate mirth ./mirth-export --out ./migrated` converts Mirth Connect channels to Ghega.
+
 - `cmd/ghega/` — CLI entrypoint.
 - `internal/cli/` — Command handlers (`serve`, `channel`, `generate`, `version`).
 - `internal/config/` — Configuration loading.

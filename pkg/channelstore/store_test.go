@@ -198,6 +198,42 @@ func testStore(t *testing.T, store ChannelStore) {
 			t.Errorf("DeployedAt %v not in range [%v, %v]", rec.DeployedAt, before, after)
 		}
 	})
+
+	t.Run("ListChannels", func(t *testing.T) {
+		_ = store.SaveChannel(ctx, "ch-list-a", "hash-la", []byte("yaml-la"), 0)
+		_ = store.SaveChannel(ctx, "ch-list-b", "hash-lb", []byte("yaml-lb"), 0)
+		_ = store.SaveChannel(ctx, "ch-list-a", "hash-la2", []byte("yaml-la2"), 0)
+
+		channels, err := store.ListChannels(ctx)
+		if err != nil {
+			t.Fatalf("ListChannels failed: %v", err)
+		}
+		if len(channels) < 2 {
+			t.Fatalf("len(channels) = %d, want at least 2", len(channels))
+		}
+		found := make(map[string]int)
+		for _, ch := range channels {
+			found[ch.Name] = ch.Revision
+		}
+		if found["ch-list-a"] != 2 {
+			t.Errorf("ch-list-a revision = %d, want 2", found["ch-list-a"])
+		}
+		if found["ch-list-b"] != 1 {
+			t.Errorf("ch-list-b revision = %d, want 1", found["ch-list-b"])
+		}
+	})
+
+	t.Run("ListChannels_Empty", func(t *testing.T) {
+		// Use a fresh store for this subtest if possible, but we can just check
+		// that it doesn't error and returns a slice.
+		channels, err := store.ListChannels(ctx)
+		if err != nil {
+			t.Fatalf("ListChannels failed: %v", err)
+		}
+		if channels == nil {
+			t.Error("expected non-nil slice")
+		}
+	})
 }
 
 func TestInMemoryStore(t *testing.T) {

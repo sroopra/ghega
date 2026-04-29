@@ -233,6 +233,42 @@ func (s *SQLiteStore) ListDeploymentAudit(ctx context.Context, channelName strin
 	return out, nil
 }
 
+// ListChannels returns the latest revision for each channel name.
+func (s *SQLiteStore) ListChannels(ctx context.Context) ([]ChannelRecord, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT name, hash, yaml, revision, deployed_at
+		FROM channels
+		WHERE (name, revision) IN (
+			SELECT name, MAX(revision)
+			FROM channels
+			GROUP BY name
+		)
+		ORDER BY name
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query channels: %w", err)
+	}
+	defer rows.Close()
+
+	var out []ChannelRecord
+	for rows.Next() {
+		var rec ChannelRecord
+		var deployedAtStr string
+		if err := rows.Scan(&rec.Name, &rec.Hash, &rec.YAML, &rec.Revision, &deployedAtStr); err != nil {
+			return nil, fmt.Errorf("scan channel row: %w", err)
+		}
+		rec.DeployedAt, err = time.Parse(time.RFC3339Nano, deployedAtStr)
+		if err != nil {
+			return nil, fmt.Errorf("parse deployed_at: %w", err)
+		}
+		out = append(out, rec)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate rows: %w", err)
+	}
+	return out, nil
+}
+
 // Close closes the underlying database connection.
 func (s *SQLiteStore) Close() error {
 	return s.db.Close()
