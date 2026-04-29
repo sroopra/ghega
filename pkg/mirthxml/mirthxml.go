@@ -220,8 +220,8 @@ type SftpDispatcherProperties struct {
 // Parsing helpers
 // ---------------------------------------------------------------------------
 
-// ParseChannel unmarshals a single Mirth channel from XML bytes.
-func ParseChannel(data []byte) (*Channel, error) {
+// parseChannelXML unmarshals a single Mirth channel from XML bytes.
+func parseChannelXML(data []byte) (*Channel, error) {
 	var ch Channel
 	if err := xml.Unmarshal(data, &ch); err != nil {
 		return nil, fmt.Errorf("unmarshal channel: %w", err)
@@ -229,17 +229,28 @@ func ParseChannel(data []byte) (*Channel, error) {
 	return &ch, nil
 }
 
-// ParseChannelFile reads and unmarshals a single Mirth channel XML file.
-func ParseChannelFile(path string) (*Channel, error) {
+// ParseChannel unmarshals a single Mirth channel from XML bytes.
+func ParseChannel(data []byte) (*Channel, error) {
+	return parseChannelXML(data)
+}
+
+// ParseChannelFromFile reads and unmarshals a single Mirth channel XML file.
+func ParseChannelFromFile(path string) (*Channel, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read channel file %s: %w", path, err)
 	}
-	ch, err := ParseChannel(data)
+	ch, err := parseChannelXML(data)
 	if err != nil {
 		return nil, fmt.Errorf("parse channel file %s: %w", path, err)
 	}
 	return ch, nil
+}
+
+// ParseChannelFile reads and unmarshals a single Mirth channel XML file.
+// It is an alias for ParseChannelFromFile.
+func ParseChannelFile(path string) (*Channel, error) {
+	return ParseChannelFromFile(path)
 }
 
 // ParseChannelsFromDir walks a directory and parses every file ending in .xml
@@ -256,7 +267,7 @@ func ParseChannelsFromDir(dir string) ([]*Channel, error) {
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".xml" {
 			continue
 		}
-		ch, err := ParseChannelFile(filepath.Join(dir, entry.Name()))
+		ch, err := ParseChannelFromFile(filepath.Join(dir, entry.Name()))
 		if err != nil {
 			// Skip files that are not valid channel XML.
 			continue

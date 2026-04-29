@@ -83,9 +83,24 @@ type ChannelSummary struct {
 // expectedDir is also non-empty, outputs are compared against the
 // corresponding expected files.
 func GenerateMigrationReports(exportDir, outDir, samplesDir, expectedDir string) (*SummaryReport, error) {
-	channels, err := mirthxml.ParseChannelsFromDir(exportDir)
+	var channels []*mirthxml.Channel
+
+	info, err := os.Stat(exportDir)
 	if err != nil {
-		return nil, fmt.Errorf("parse channels from dir: %w", err)
+		return nil, fmt.Errorf("stat export path: %w", err)
+	}
+
+	if !info.IsDir() {
+		ch, err := mirthxml.ParseChannelFromFile(exportDir)
+		if err != nil {
+			return nil, fmt.Errorf("parse channel from file: %w", err)
+		}
+		channels = append(channels, ch)
+	} else {
+		channels, err = mirthxml.ParseChannelsFromDir(exportDir)
+		if err != nil {
+			return nil, fmt.Errorf("parse channels from dir: %w", err)
+		}
 	}
 
 	if err := os.MkdirAll(outDir, 0755); err != nil {
