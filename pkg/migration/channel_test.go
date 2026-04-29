@@ -1,6 +1,7 @@
 package migration
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/sroopra/ghega/pkg/mirthxml"
@@ -314,6 +315,7 @@ const syntheticDBChannel = `<?xml version="1.0" encoding="UTF-8"?>
     <properties class="com.mirth.connect.connectors.jdbc.DatabaseReaderProperties">
       <driver>org.postgresql.Driver</driver>
       <url>jdbc:postgresql://localhost/db</url>
+      <query>SELECT * FROM patients</query>
     </properties>
     <transformer>
       <steps/>
@@ -635,22 +637,211 @@ func TestConvertChannel_DBConnectors(t *testing.T) {
 	if res.Channel.Destination.Type != "db" {
 		t.Errorf("dest type: got %q, want %q", res.Channel.Destination.Type, "db")
 	}
+	if res.Channel.Source.Config["driver"] != "org.postgresql.Driver" {
+		t.Errorf("source driver: got %v", res.Channel.Source.Config["driver"])
+	}
+	if res.Channel.Source.Config["url"] != "jdbc:postgresql://localhost/db" {
+		t.Errorf("source url: got %v", res.Channel.Source.Config["url"])
+	}
+	if res.Channel.Source.Config["query"] != "SELECT * FROM patients" {
+		t.Errorf("source query: got %v", res.Channel.Source.Config["query"])
+	}
+	if res.Channel.Destination.Config["driver"] != "org.postgresql.Driver" {
+		t.Errorf("dest driver: got %v", res.Channel.Destination.Config["driver"])
+	}
+	if res.Channel.Destination.Config["url"] != "jdbc:postgresql://localhost/db" {
+		t.Errorf("dest url: got %v", res.Channel.Destination.Config["url"])
+	}
 
-	srcWarn := false
-	dstWarn := false
 	for _, w := range res.Warnings {
-		if w == "Database Reader source is mapped to type 'db' but configuration is not fully extracted" {
-			srcWarn = true
-		}
-		if w == "Database Writer destination is mapped to type 'db' but configuration is not fully extracted" {
-			dstWarn = true
+		if strings.Contains(w, "configuration is not fully extracted") {
+			t.Errorf("unexpected generic config warning: %s", w)
 		}
 	}
-	if !srcWarn {
-		t.Errorf("expected DB source warning, got: %v", res.Warnings)
+}
+
+// syntheticDBChannelWithPassword has database connectors with passwords.
+const syntheticDBChannelWithPassword = `<?xml version="1.0" encoding="UTF-8"?>
+<channel version="3.12.0">
+  <id>ch-007p</id>
+  <name>DB_Password_Channel</name>
+  <description>Database channel with passwords</description>
+  <enabled>true</enabled>
+  <revision>1</revision>
+  <sourceConnector>
+    <name>DB Source</name>
+    <enabled>true</enabled>
+    <properties class="com.mirth.connect.connectors.jdbc.DatabaseReaderProperties">
+      <driver>org.postgresql.Driver</driver>
+      <url>jdbc:postgresql://localhost/db</url>
+      <username>admin</username>
+      <password>secret123</password>
+      <query>SELECT * FROM patients</query>
+    </properties>
+    <transformer>
+      <steps/>
+    </transformer>
+    <filter>
+      <rules/>
+    </filter>
+  </sourceConnector>
+  <destinationConnectors>
+    <connector>
+      <name>DB Destination</name>
+      <enabled>true</enabled>
+      <properties class="com.mirth.connect.connectors.jdbc.DatabaseWriterProperties">
+        <driver>org.postgresql.Driver</driver>
+        <url>jdbc:postgresql://localhost/db</url>
+        <username>admin</username>
+        <password>secret456</password>
+      </properties>
+      <transformer>
+        <steps/>
+      </transformer>
+      <filter>
+        <rules/>
+      </filter>
+    </connector>
+  </destinationConnectors>
+  <properties/>
+</channel>`
+
+// syntheticSFTPChannel has SFTP connectors.
+const syntheticSFTPChannel = `<?xml version="1.0" encoding="UTF-8"?>
+<channel version="3.12.0">
+  <id>ch-011</id>
+  <name>SFTP_Channel</name>
+  <description>SFTP channel</description>
+  <enabled>true</enabled>
+  <revision>1</revision>
+  <sourceConnector>
+    <name>SFTP Source</name>
+    <enabled>true</enabled>
+    <properties class="com.mirth.connect.connectors.sftp.SftpReceiverProperties">
+      <host>sftp.example.com</host>
+      <port>22</port>
+      <username>sftpuser</username>
+      <path>/inbound</path>
+    </properties>
+    <transformer>
+      <steps/>
+    </transformer>
+    <filter>
+      <rules/>
+    </filter>
+  </sourceConnector>
+  <destinationConnectors>
+    <connector>
+      <name>SFTP Destination</name>
+      <enabled>true</enabled>
+      <properties class="com.mirth.connect.connectors.sftp.SftpDispatcherProperties">
+        <host>sftp.example.com</host>
+        <port>22</port>
+        <username>sftpuser</username>
+        <path>/outbound</path>
+      </properties>
+      <transformer>
+        <steps/>
+      </transformer>
+      <filter>
+        <rules/>
+      </filter>
+    </connector>
+  </destinationConnectors>
+  <properties/>
+</channel>`
+
+func TestConvertChannel_DBConnectorsWithPassword(t *testing.T) {
+	mch, err := mirthxml.ParseChannel([]byte(syntheticDBChannelWithPassword))
+	if err != nil {
+		t.Fatalf("parse channel: %v", err)
 	}
-	if !dstWarn {
-		t.Errorf("expected DB destination warning, got: %v", res.Warnings)
+
+	res, err := ConvertChannel(mch)
+	if err != nil {
+		t.Fatalf("convert channel: %v", err)
+	}
+
+	if res.Channel.Source.Type != "db" {
+		t.Errorf("source type: got %q, want %q", res.Channel.Source.Type, "db")
+	}
+	if res.Channel.Destination.Type != "db" {
+		t.Errorf("dest type: got %q, want %q", res.Channel.Destination.Type, "db")
+	}
+	if res.Channel.Source.Config["username"] != "admin" {
+		t.Errorf("source username: got %v", res.Channel.Source.Config["username"])
+	}
+	if res.Channel.Destination.Config["username"] != "admin" {
+		t.Errorf("dest username: got %v", res.Channel.Destination.Config["username"])
+	}
+
+	srcPassWarn := false
+	dstPassWarn := false
+	for _, w := range res.Warnings {
+		if strings.Contains(w, "Password field detected in connector config") {
+			if strings.Contains(w, "secrets management") {
+				if !srcPassWarn {
+					srcPassWarn = true
+				} else {
+					dstPassWarn = true
+				}
+			}
+		}
+	}
+	if !srcPassWarn {
+		t.Errorf("expected source password warning, got: %v", res.Warnings)
+	}
+	if !dstPassWarn {
+		t.Errorf("expected destination password warning, got: %v", res.Warnings)
+	}
+}
+
+func TestConvertChannel_SFTPConnectors(t *testing.T) {
+	mch, err := mirthxml.ParseChannel([]byte(syntheticSFTPChannel))
+	if err != nil {
+		t.Fatalf("parse channel: %v", err)
+	}
+
+	res, err := ConvertChannel(mch)
+	if err != nil {
+		t.Fatalf("convert channel: %v", err)
+	}
+
+	if res.Channel.Source.Type != "sftp" {
+		t.Errorf("source type: got %q, want %q", res.Channel.Source.Type, "sftp")
+	}
+	if res.Channel.Destination.Type != "sftp" {
+		t.Errorf("dest type: got %q, want %q", res.Channel.Destination.Type, "sftp")
+	}
+	if res.Channel.Source.Config["host"] != "sftp.example.com" {
+		t.Errorf("source host: got %v", res.Channel.Source.Config["host"])
+	}
+	if res.Channel.Source.Config["port"] != 22 {
+		t.Errorf("source port: got %v", res.Channel.Source.Config["port"])
+	}
+	if res.Channel.Source.Config["path"] != "/inbound" {
+		t.Errorf("source path: got %v", res.Channel.Source.Config["path"])
+	}
+	if res.Channel.Source.Config["username"] != "sftpuser" {
+		t.Errorf("source username: got %v", res.Channel.Source.Config["username"])
+	}
+	if res.Channel.Destination.Config["host"] != "sftp.example.com" {
+		t.Errorf("dest host: got %v", res.Channel.Destination.Config["host"])
+	}
+	if res.Channel.Destination.Config["port"] != 22 {
+		t.Errorf("dest port: got %v", res.Channel.Destination.Config["port"])
+	}
+	if res.Channel.Destination.Config["path"] != "/outbound" {
+		t.Errorf("dest path: got %v", res.Channel.Destination.Config["path"])
+	}
+	if res.Channel.Destination.Config["username"] != "sftpuser" {
+		t.Errorf("dest username: got %v", res.Channel.Destination.Config["username"])
+	}
+
+	for _, w := range res.Warnings {
+		if strings.Contains(w, "configuration is not fully extracted") {
+			t.Errorf("unexpected generic config warning: %s", w)
+		}
 	}
 }
 

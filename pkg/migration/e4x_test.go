@@ -1,6 +1,7 @@
 package migration
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/sroopra/ghega/pkg/mapping"
@@ -192,6 +193,68 @@ func TestClassifyTransformerStep_ComplexRHS(t *testing.T) {
 	}
 }
 
+func TestClassifyTransformerStep_ChannelMapAccess(t *testing.T) {
+	step := mirthxml.Step{Script: "channelMap.put('key', 'value'); var x = channelMap.get('key');"}
+	res := ClassifyTransformerStep(step)
+	foundPut := false
+	foundGet := false
+	for _, p := range res.Patterns {
+		if p.Category == CategoryChannelMapAccess {
+			if p.Disposition != DispositionNeedsRewrite {
+				t.Errorf("expected needs_rewrite for channelMap access, got %s", p.Disposition)
+			}
+			if strings.Contains(p.Description, "put") {
+				foundPut = true
+			}
+			if strings.Contains(p.Description, "get") {
+				foundGet = true
+			}
+			if p.RewriteTask == nil {
+				t.Errorf("expected rewrite task for channelMap access")
+			} else if !strings.Contains(p.RewriteTask.Description, "Go variables") && !strings.Contains(p.RewriteTask.Description, "channel configuration") {
+				t.Errorf("unexpected rewrite task description: %s", p.RewriteTask.Description)
+			}
+		}
+	}
+	if !foundPut {
+		t.Errorf("expected channelMap.put pattern")
+	}
+	if !foundGet {
+		t.Errorf("expected channelMap.get pattern")
+	}
+}
+
+func TestClassifyTransformerStep_GlobalMapAccess(t *testing.T) {
+	step := mirthxml.Step{Script: "globalMap.put('key', 'value'); var x = globalMap.get('key');"}
+	res := ClassifyTransformerStep(step)
+	foundPut := false
+	foundGet := false
+	for _, p := range res.Patterns {
+		if p.Category == CategoryGlobalMapAccess {
+			if p.Disposition != DispositionNeedsRewrite {
+				t.Errorf("expected needs_rewrite for globalMap access, got %s", p.Disposition)
+			}
+			if strings.Contains(p.Description, "put") {
+				foundPut = true
+			}
+			if strings.Contains(p.Description, "get") {
+				foundGet = true
+			}
+			if p.RewriteTask == nil {
+				t.Errorf("expected rewrite task for globalMap access")
+			} else if !strings.Contains(p.RewriteTask.Description, "Go variables") && !strings.Contains(p.RewriteTask.Description, "channel configuration") {
+				t.Errorf("unexpected rewrite task description: %s", p.RewriteTask.Description)
+			}
+		}
+	}
+	if !foundPut {
+		t.Errorf("expected globalMap.put pattern")
+	}
+	if !foundGet {
+		t.Errorf("expected globalMap.get pattern")
+	}
+}
+
 func TestClassifyTransformerStep_MixedStatus(t *testing.T) {
 	step := mirthxml.Step{
 		Script: `msg['PID']['PID.3']['PID.3.1'] = 'STATIC';
@@ -202,5 +265,35 @@ if (msg['PID']['PID.3']['PID.3.1'] == '') {
 	res := ClassifyTransformerStep(step)
 	if res.Status != "mixed" {
 		t.Errorf("expected mixed status, got %s", res.Status)
+	}
+}
+
+func TestClassifyTransformerStep_JSONNotExternalCall(t *testing.T) {
+	step := mirthxml.Step{Script: "var s = JSON.stringify(msg);"}
+	res := ClassifyTransformerStep(step)
+	for _, p := range res.Patterns {
+		if p.Category == CategoryExternalCall {
+			t.Errorf("JSON.stringify should not be classified as external call")
+		}
+	}
+}
+
+func TestClassifyTransformerStep_DateNotExternalCall(t *testing.T) {
+	step := mirthxml.Step{Script: "var now = Date();"}
+	res := ClassifyTransformerStep(step)
+	for _, p := range res.Patterns {
+		if p.Category == CategoryExternalCall {
+			t.Errorf("Date should not be classified as external call")
+		}
+	}
+}
+
+func TestClassifyTransformerStep_MathNotExternalCall(t *testing.T) {
+	step := mirthxml.Step{Script: "var m = Math.max(a, b);"}
+	res := ClassifyTransformerStep(step)
+	for _, p := range res.Patterns {
+		if p.Category == CategoryExternalCall {
+			t.Errorf("Math.max should not be classified as external call")
+		}
 	}
 }

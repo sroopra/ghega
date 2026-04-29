@@ -163,8 +163,7 @@ func runChannelDeploy(args []string) error {
 
 	result, err := channel.Deploy(fs.Arg(0), store)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "deploy failed: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("deploy failed: %w", err)
 	}
 
 	if result.PreviousHash == "" {
@@ -192,8 +191,7 @@ func runChannelDiff(args []string) error {
 
 	result, err := channel.DiffLocal(fs.Arg(0), store)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "diff failed: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("diff failed: %w", err)
 	}
 
 	if result.DeployedHash == "" {
@@ -222,16 +220,14 @@ func runChannelRollback(args []string) error {
 
 	name := fs.Arg(0)
 	if err := channel.Rollback(name, *toHash, store); err != nil {
-		fmt.Fprintf(os.Stderr, "rollback failed: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("rollback failed: %w", err)
 	}
 
 	hash := *toHash
 	if hash == "" {
 		rec, err := store.GetChannel(context.Background(), name)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "rollback failed: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("rollback failed: %w", err)
 		}
 		hash = rec.Hash
 	}

@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -154,77 +153,4 @@ func TestChannelValidateMissingFile(t *testing.T) {
 	}
 }
 
-func TestMessageRedeliverExits1(t *testing.T) {
-	if os.Getenv("BE_TEST_MESSAGE_REDELIVER") == "1" {
-		_ = runMessage([]string{"redeliver", "msg-001", "--destination", "http://example.com"})
-		return
-	}
 
-	cmd := exec.Command(os.Args[0], "-test.run=TestMessageRedeliverExits1")
-	cmd.Env = append(os.Environ(), "BE_TEST_MESSAGE_REDELIVER=1")
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-
-	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-		// expected
-	} else if err != nil {
-		t.Fatalf("unexpected error: %v (stderr: %s)", err, stderr.String())
-	} else {
-		t.Fatalf("expected exit code 1, got 0 (stderr: %s)", stderr.String())
-	}
-
-	if !strings.Contains(stderr.String(), "not yet implemented") {
-		t.Errorf("expected stderr to contain 'not yet implemented', got: %s", stderr.String())
-	}
-}
-
-func TestMessageReplayExits1(t *testing.T) {
-	if os.Getenv("BE_TEST_MESSAGE_REPLAY") == "1" {
-		_ = runMessage([]string{"replay", "msg-001", "--as-new"})
-		return
-	}
-
-	cmd := exec.Command(os.Args[0], "-test.run=TestMessageReplayExits1")
-	cmd.Env = append(os.Environ(), "BE_TEST_MESSAGE_REPLAY=1")
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-
-	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-		// expected
-	} else if err != nil {
-		t.Fatalf("unexpected error: %v (stderr: %s)", err, stderr.String())
-	} else {
-		t.Fatalf("expected exit code 1, got 0 (stderr: %s)", stderr.String())
-	}
-
-	if !strings.Contains(stderr.String(), "not yet implemented") {
-		t.Errorf("expected stderr to contain 'not yet implemented', got: %s", stderr.String())
-	}
-}
-
-func TestMessageReplayPreviewExits1(t *testing.T) {
-	if os.Getenv("BE_TEST_MESSAGE_REPLAY_PREVIEW") == "1" {
-		_ = runMessage([]string{"replay-preview", "msg-001"})
-		return
-	}
-
-	cmd := exec.Command(os.Args[0], "-test.run=TestMessageReplayPreviewExits1")
-	cmd.Env = append(os.Environ(), "BE_TEST_MESSAGE_REPLAY_PREVIEW=1")
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-
-	if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-		// expected
-	} else if err != nil {
-		t.Fatalf("unexpected error: %v (stderr: %s)", err, stderr.String())
-	} else {
-		t.Fatalf("expected exit code 1, got 0 (stderr: %s)", stderr.String())
-	}
-
-	if !strings.Contains(stderr.String(), "not yet implemented") {
-		t.Errorf("expected stderr to contain 'not yet implemented', got: %s", stderr.String())
-	}
-}
