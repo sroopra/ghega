@@ -67,24 +67,38 @@ func ConvertChannel(mch *mirthxml.Channel) (*ConversionResult, error) {
 }
 
 func hasScripts(mch *mirthxml.Channel) bool {
-	if len(mch.SourceConnector.Transformer.Steps) > 0 {
-		return true
+	for _, step := range mch.SourceConnector.Transformer.Steps {
+		if strings.TrimSpace(step.Script) != "" {
+			return true
+		}
 	}
-	if len(mch.SourceConnector.Filter.Rules) > 0 {
-		return true
+	for _, rule := range mch.SourceConnector.Filter.Rules {
+		if strings.TrimSpace(rule.Script) != "" {
+			return true
+		}
 	}
 	for _, d := range mch.DestinationConnectors {
-		if len(d.Transformer.Steps) > 0 {
-			return true
+		for _, step := range d.Transformer.Steps {
+			if strings.TrimSpace(step.Script) != "" {
+				return true
+			}
 		}
-		if len(d.Filter.Rules) > 0 {
-			return true
+		for _, rule := range d.Filter.Rules {
+			if strings.TrimSpace(rule.Script) != "" {
+				return true
+			}
 		}
 	}
-	if mch.PreprocessorScript != "" || mch.PostprocessorScript != "" {
+	if strings.TrimSpace(mch.PreprocessorScript) != "" {
 		return true
 	}
-	if mch.DeployScript != "" || mch.UndeployScript != "" {
+	if strings.TrimSpace(mch.PostprocessorScript) != "" {
+		return true
+	}
+	if strings.TrimSpace(mch.DeployScript) != "" {
+		return true
+	}
+	if strings.TrimSpace(mch.UndeployScript) != "" {
 		return true
 	}
 	return false

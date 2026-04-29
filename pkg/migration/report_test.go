@@ -1,6 +1,7 @@
 package migration
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -302,5 +303,113 @@ func TestWriteChannelYAML(t *testing.T) {
 	}
 	if !strings.Contains(content, "type: mllp") {
 		t.Errorf("expected source type in yaml, got:\n%s", content)
+	}
+}
+
+func TestGenerateMigrationReports_NameCollision(t *testing.T) {
+	tmpDir := t.TempDir()
+	exportDir := filepath.Join(tmpDir, "export")
+	outDir := filepath.Join(tmpDir, "out")
+
+	if err := os.MkdirAll(exportDir, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	baseXML := `<?xml version="1.0" encoding="UTF-8"?>
+<channel version="3.12.0">
+  <id>%s</id>
+  <name>%s</name>
+  <description>Collision test</description>
+  <enabled>true</enabled>
+  <revision>1</revision>
+  <sourceConnector>
+    <name>MLLP Source</name>
+    <enabled>true</enabled>
+    <properties class="com.mirth.connect.connectors.tcp.TcpListenerProperties">
+      <listenerConnectorProperties>
+        <host>0.0.0.0</host>
+        <port>6661</port>
+      </listenerConnectorProperties>
+    </properties>
+    <transformer>
+      <steps/>
+    </transformer>
+    <filter>
+      <rules/>
+    </filter>
+  </sourceConnector>
+  <destinationConnectors>
+    <connector>
+      <name>HTTP Destination</name>
+      <enabled>true</enabled>
+      <properties class="com.mirth.connect.connectors.http.HttpDispatcherProperties">
+        <host>example.com</host>
+        <port>80</port>
+        <method>POST</method>
+      </properties>
+      <transformer>
+        <steps/>
+      </transformer>
+      <filter>
+        <rules/>
+      </filter>
+    </connector>
+  </destinationConnectors>
+  <properties/>
+</channel>`
+
+	// "ADT Feed" and "ADT_Feed" both sanitize to "adt-feed"
+	ch1 := fmt.Sprintf(baseXML, "ch-001", "ADT Feed")
+	ch2 := fmt.Sprintf(baseXML, "ch-002", "ADT_Feed")
+
+	if err := os.WriteFile(filepath.Join(exportDir, "adt1.xml"), []byte(ch1), 0644); err != nil {
+		t.Fatalf("write channel xml: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(exportDir, "adt2.xml"), []byte(ch2), 0644); err != nil {
+		t.Fatalf("write channel xml: %v", err)
+	}
+
+	summary, err := GenerateMigrationReports(exportDir, outDir)
+	if err != nil {
+		t.Fatalf("generate reports: %v", err)
+	}
+
+	if summary.TotalChannels != 2 {
+		t.Errorf("expected 2 channels, got %d", summary.TotalChannels)
+	}
+
+	// Both should be auto-converted.
+	if summary.TotalAutoConverted != 2 {
+		t.Errorf("expected 2 auto-converted, got %d", summary.TotalAutoConverted)
+	}
+
+	// Verify both directories exist.
+	firstDir := filepath.Join(outDir, "adt-feed")
+	secondDir := filepath.Join(outDir, "adt-feed-2")
+	if _, err := os.Stat(firstDir); os.IsNotExist(err) {
+		t.Fatalf("expected first directory %s to exist", firstDir)
+	}
+	if _, err := os.Stat(secondDir); os.IsNotExist(err) {
+		t.Fatalf("expected second directory %s to exist", secondDir)
+	}
+
+	// Verify warning in second report.
+	rptPath := filepath.Join(secondDir, "migration-report.yaml")
+	data, err := os.ReadFile(rptPath)
+	if err != nil {
+		t.Fatalf("read migration report: %v", err)
+	}
+	if !strings.Contains(string(data), "collision") {
+		t.Errorf("expected name collision warning in report, got:\n%s", string(data))
+	}
+
+	// Verify channel.yaml name matches the renamed directory.
+	chPath := filepath.Join(secondDir, "channel.yaml")
+	chData, err := os.ReadFile(chPath)
+	if err != nil {
+		t.Fatalf("read channel.yaml: %v", err)
+	}
+	if !strings.Contains(string(chData), "name: adt-feed-2") {
+		t.Errorf("expected channel.yaml name to match renamed directory, got:\n%s", string(chData))
 	}
 }
