@@ -23,6 +23,8 @@ func runMigrate(args []string) error {
 func runMigrateMirth(args []string) error {
 	fs := flag.NewFlagSet("mirth", flag.ExitOnError)
 	out := fs.String("out", "", "Output directory for migration reports (required)")
+	samples := fs.String("samples", "", "Directory containing sample HL7 input messages")
+	expected := fs.String("expected", "", "Directory containing expected/golden output files")
 
 	// Re-order args so that flags may appear before or after positional args.
 	if err := fs.Parse(reorderFlags(args)); err != nil {
@@ -38,7 +40,7 @@ func runMigrateMirth(args []string) error {
 		return fmt.Errorf("--out is required")
 	}
 
-	_, err := migration.GenerateMigrationReports(exportDir, *out)
+	_, err := migration.GenerateMigrationReports(exportDir, *out, *samples, *expected)
 	if err != nil {
 		return fmt.Errorf("migration failed: %w", err)
 	}
@@ -53,6 +55,8 @@ func runMigrateMirth(args []string) error {
 func reorderFlags(args []string) []string {
 	known := map[string]bool{
 		"--out": true, "-out": true,
+		"--samples": true, "-samples": true,
+		"--expected": true, "-expected": true,
 	}
 	var flags []string
 	var positional []string
