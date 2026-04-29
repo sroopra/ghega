@@ -33,6 +33,16 @@ Start the Ghega HTTP server:
 
 The server listens on port `8080` by default. Override it with the `--port` flag or the `GHEGA_PORT` environment variable.
 
+### Migration from Mirth
+
+Import Mirth Connect channel exports:
+
+```bash
+ghega migrate mirth ./mirth-export --out ./migrated
+```
+
+The command produces per-channel reports in `./migrated/` with auto-converted mappings and typed rewrite tasks for patterns that could not be migrated automatically.
+
 ## Testing
 
 Run the full test suite:
