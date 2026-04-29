@@ -13,77 +13,6 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`status-badge ${cls}`}>{status}</span>
 }
 
-const MOCK_MIGRATIONS: MigrationReport[] = [
-  {
-    id: 'adt-a01-mirth',
-    channel_name: 'adt-a01',
-    original_name: 'ADT A01 Inbound',
-    status: 'auto-converted',
-    rewrite_tasks_count: 0,
-    warnings_count: 1,
-  },
-  {
-    id: 'oru-r01-mirth',
-    channel_name: 'oru-r01',
-    original_name: 'ORU R01 Lab Results',
-    status: 'needs-rewrite',
-    rewrite_tasks_count: 3,
-    warnings_count: 2,
-  },
-  {
-    id: 'mdm-t02-mirth',
-    channel_name: 'mdm-t02',
-    original_name: 'MDM T02 Documents',
-    status: 'unsupported',
-    rewrite_tasks_count: 0,
-    warnings_count: 1,
-  },
-]
-
-const MOCK_DETAIL: Record<string, MigrationDetail> = {
-  'adt-a01-mirth': {
-    channel_name: 'adt-a01',
-    original_name: 'ADT A01 Inbound',
-    status: 'auto-converted',
-    auto_converted: [
-      { element: 'source_connector', description: 'Source mapped to type "mllp"' },
-      { element: 'destination_connector', description: 'Destination mapped to type "http"' },
-    ],
-    needs_rewrite: [],
-    unsupported: [],
-    warnings: ['channel name sanitized from "ADT A01 Inbound" to "adt-a01"'],
-  },
-  'oru-r01-mirth': {
-    channel_name: 'oru-r01',
-    original_name: 'ORU R01 Lab Results',
-    status: 'needs-rewrite',
-    auto_converted: [
-      { element: 'source_connector', description: 'Source mapped to type "mllp"' },
-    ],
-    needs_rewrite: [
-      { severity: 'medium', description: 'Rewrite JS transformer for HL7 mapping', category: 'transformer' },
-      { severity: 'high', description: 'Replace E4X XML construction with typed mapping', category: 'e4x' },
-      { severity: 'low', description: 'Add validation for OBR segment', category: 'transformer' },
-    ],
-    unsupported: [],
-    warnings: [
-      'channel name sanitized from "ORU R01 Lab Results" to "oru-r01"',
-      'JavaScript transformers/filters are present but not converted in this step',
-    ],
-  },
-  'mdm-t02-mirth': {
-    channel_name: 'mdm-t02',
-    original_name: 'MDM T02 Documents',
-    status: 'unsupported',
-    auto_converted: [],
-    needs_rewrite: [],
-    unsupported: [
-      { feature: 'destination_connector', description: 'unsupported destination connector type "com.mirth.connect.connectors.jdbc.DatabaseWriterProperties"' },
-    ],
-    warnings: ['channel name sanitized from "MDM T02 Documents" to "mdm-t02"'],
-  },
-}
-
 export default function MigrationsPage() {
   const [migrations, setMigrations] = useState<MigrationReport[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -97,15 +26,14 @@ export default function MigrationsPage() {
     listMigrations()
       .then((data) => {
         if (!cancelled) {
-          setMigrations(data.length > 0 ? data : MOCK_MIGRATIONS)
+          setMigrations(data)
           setError(null)
         }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          console.warn('API unavailable, using mock data:', err)
-          setMigrations(MOCK_MIGRATIONS)
-          setError(null)
+          const msg = err instanceof Error ? err.message : String(err)
+          setError(msg)
         }
       })
       .finally(() => {
@@ -126,10 +54,9 @@ export default function MigrationsPage() {
       .then((data) => {
         if (!cancelled) setDetail(data)
       })
-      .catch((err: unknown) => {
+      .catch(() => {
         if (!cancelled) {
-          console.warn('API unavailable, using mock detail:', err)
-          setDetail(MOCK_DETAIL[selectedId] || null)
+          setDetail(null)
         }
       })
     return () => {
