@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/sroopra/ghega/internal/alerts"
+	"github.com/sroopra/ghega/internal/config"
 	"github.com/sroopra/ghega/internal/engine"
 	"github.com/sroopra/ghega/internal/server"
 	"github.com/sroopra/ghega/pkg/messagestore"
@@ -22,12 +23,17 @@ import (
 func runServe(args []string) error {
 	fs := flag.NewFlagSet("serve", flag.ExitOnError)
 	port := fs.Int("port", 8080, "HTTP server port")
+	migrationsDir := fs.String("migrations-dir", "", "Directory containing migration reports")
 	_ = fs.Parse(args)
 
 	if envPort := os.Getenv("GHEGA_PORT"); envPort != "" {
 		if p, err := strconv.Atoi(envPort); err == nil {
 			*port = p
 		}
+	}
+
+	if *migrationsDir == "" {
+		*migrationsDir = config.MigrationsDir("")
 	}
 
 	store, err := initStore()
@@ -38,6 +44,7 @@ func runServe(args []string) error {
 	// Start HTTP API server.
 	alertStore := alerts.NewInMemoryAlertStore()
 	srv := server.New(store, alertStore)
+	srv.SetMigrationsDir(*migrationsDir)
 	httpSrv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", *port),
 		Handler: srv.Handler(),
