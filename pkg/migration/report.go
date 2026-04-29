@@ -184,6 +184,7 @@ func processChannel(mch *mirthxml.Channel, outDir string) (*ChannelMigrationRepo
 			candidateDir := filepath.Join(outDir, candidate)
 			if _, err := os.Stat(candidateDir); os.IsNotExist(err) {
 				report.ChannelName = candidate
+				convResult.Channel.Name = candidate
 				report.Warnings = append(report.Warnings,
 					fmt.Sprintf("channel name collision: renamed from %q to %q", mch.Name, candidate))
 				channelDir = candidateDir
