@@ -204,3 +204,38 @@ if (msg['PID']['PID.3']['PID.3.1'] == '') {
 		t.Errorf("expected mixed status, got %s", res.Status)
 	}
 }
+
+func TestClassifyTransformerStep_JSBuiltins_NotExternalCall(t *testing.T) {
+	cases := []string{
+		"JSON.stringify(x);",
+		"Date();",
+		"Array.isArray(arr);",
+		"Math.max(a, b);",
+		"String(42);",
+		"Number('3.14');",
+		"parseInt('10', 10);",
+		"parseFloat('3.14');",
+		"isNaN(val);",
+		"isFinite(val);",
+		"encodeURI(uri);",
+		"decodeURI(uri);",
+		"encodeURIComponent(uri);",
+		"decodeURIComponent(uri);",
+		"escape(str);",
+		"unescape(str);",
+		"eval(code);",
+	}
+
+	for _, script := range cases {
+		step := mirthxml.Step{Script: script}
+		res := ClassifyTransformerStep(step)
+		for _, p := range res.Patterns {
+			if p.Category == CategoryExternalCall {
+				t.Errorf("expected %q NOT to be classified as external_call, got %s", script, p.Description)
+			}
+		}
+		if res.Status != "auto_converted" {
+			t.Errorf("expected %q to result in auto_converted status, got %s", script, res.Status)
+		}
+	}
+}

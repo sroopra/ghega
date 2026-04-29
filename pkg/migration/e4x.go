@@ -81,6 +81,11 @@ var jsKeywords = map[string]bool{
 var knownCallRoots = map[string]bool{
 	"msg": true, "logger": true, "destinationSet": true, "router": true,
 	"responseMap": true, "print": true, "debug": true, "XML": true,
+	// JavaScript built-ins — not external libraries, but will need Go equivalents
+	"JSON": true, "Date": true, "Array": true, "Math": true, "String": true, "Number": true,
+	"parseInt": true, "parseFloat": true, "isNaN": true, "isFinite": true,
+	"encodeURI": true, "decodeURI": true, "encodeURIComponent": true, "decodeURIComponent": true,
+	"escape": true, "unescape": true, "eval": true,
 }
 
 // ClassifyTransformerStep analyses a single Mirth transformer step and returns
