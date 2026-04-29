@@ -24,6 +24,7 @@ const (
 	CategoryExternalCall        PatternCategory = "external_call"
 	CategoryChannelMapAccess    PatternCategory = "channel_map_access"
 	CategoryGlobalMapAccess     PatternCategory = "global_map_access"
+	CategoryResponseMapAccess   PatternCategory = "response_map_access"
 )
 
 // Disposition indicates whether a pattern can be auto-converted.
@@ -63,13 +64,14 @@ var (
 	conditionalRe  = regexp.MustCompile(`(?m)\b(if|switch)\b`)
 	e4xRe          = regexp.MustCompile(`(?m)(new\s+XML\s*\(|\.{2}\s*\*|\.\s*@|\belements\s*\(|\bdescendants\s*\(|\bchildren\s*\(|\bnamespace\s*\()`)
 	loopRe         = regexp.MustCompile(`(?m)\b(for\s*\(|for\s+each\s*\(|while\s*\()`)
-	destDispatchRe = regexp.MustCompile(`(?m)\b(destinationSet|router\s*\.\s*routeMessage|responseMap)\b`)
+	destDispatchRe = regexp.MustCompile(`(?m)\b(destinationSet|router\s*\.\s*routeMessage)\b`)
 	loggerRe       = regexp.MustCompile(`(?m)\b(logger\s*\.\s*(info|debug|error|warn|trace)|print\s*\(|debug\s*\()`)
 	msgAccessRe    = regexp.MustCompile(`msg(?:\['[^']+'\])+`)
 	stringLiteralRe = regexp.MustCompile(`^["'](.*)["']$`)
 	staticValueRe  = regexp.MustCompile(`^\d+(\.\d+)?$|^(true|false|null)$`)
 	externalCallRe = regexp.MustCompile(`(?m)([a-zA-Z_$][a-zA-Z0-9_$]*(?:\s*\.\s*[a-zA-Z_$][a-zA-Z0-9_$]*)*)\s*\(`)
 	channelMapRe   = regexp.MustCompile(`(?m)\b(channelMap|globalMap)\s*\.\s*(put|get)\s*\(`)
+	responseMapRe  = regexp.MustCompile(`(?m)\bresponseMap\b`)
 )
 
 var jsKeywords = map[string]bool{
@@ -83,7 +85,7 @@ var jsKeywords = map[string]bool{
 
 var knownCallRoots = map[string]bool{
 	"msg": true, "logger": true, "destinationSet": true, "router": true,
-	"responseMap": true, "print": true, "debug": true, "XML": true,
+	"print": true, "debug": true, "XML": true,
 	"channelMap": true, "globalMap": true,
 	// JavaScript built-ins — not external libraries, but need Go equivalents on rewrite
 	"JSON": true, "Date": true, "Array": true, "Math": true, "String": true, "Number": true,
@@ -255,6 +257,18 @@ func classifyLine(line string) []ClassifiedPattern {
 				},
 			})
 		}
+	}
+
+	if responseMapRe.MatchString(line) {
+		patterns = append(patterns, ClassifiedPattern{
+			Category:    CategoryResponseMapAccess,
+			Disposition: DispositionNeedsRewrite,
+			Description: "responseMap access detected; should be replaced with destination response handling in Ghega.",
+			RewriteTask: &RewriteTask{
+				Severity:    "medium",
+				Description: "Replace responseMap with Ghega destination response handling or custom Go logic.",
+			},
+		})
 	}
 
 	if len(patterns) == 0 {

@@ -297,3 +297,32 @@ func TestClassifyTransformerStep_MathNotExternalCall(t *testing.T) {
 		}
 	}
 }
+
+func TestClassifyTransformerStep_ResponseMapAccess(t *testing.T) {
+	step := mirthxml.Step{Script: "responseMap['key'] = 'value';"}
+	res := ClassifyTransformerStep(step)
+	found := false
+	for _, p := range res.Patterns {
+		if p.Category == CategoryResponseMapAccess {
+			found = true
+			if p.Disposition != DispositionNeedsRewrite {
+				t.Errorf("expected needs_rewrite for responseMap access, got %s", p.Disposition)
+			}
+			if p.RewriteTask == nil {
+				t.Fatalf("expected rewrite task for responseMap access")
+			}
+			if p.RewriteTask.Severity != "medium" {
+				t.Errorf("expected severity medium, got %s", p.RewriteTask.Severity)
+			}
+		}
+		if p.Category == CategoryDestinationDispatch {
+			t.Errorf("responseMap should not be classified as destination_dispatch")
+		}
+		if p.Category == CategoryExternalCall {
+			t.Errorf("responseMap should not be classified as external_call")
+		}
+	}
+	if !found {
+		t.Errorf("expected response_map_access pattern")
+	}
+}
