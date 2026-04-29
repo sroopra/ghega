@@ -192,6 +192,26 @@ func TestClassifyTransformerStep_ComplexRHS(t *testing.T) {
 	}
 }
 
+func TestClassifyTransformerStep_JSBuiltinNotExternal(t *testing.T) {
+	cases := []string{
+		"var s = JSON.stringify(msg);",
+		"var d = Date();",
+		"var arr = Array(5);",
+		"var n = Number('42');",
+		"var x = parseInt('10');",
+		"var y = encodeURIComponent('a b');",
+	}
+	for _, script := range cases {
+		step := mirthxml.Step{Script: script}
+		res := ClassifyTransformerStep(step)
+		for _, p := range res.Patterns {
+			if p.Category == CategoryExternalCall {
+				t.Errorf("script %q: unexpected CategoryExternalCall for %s", script, p.Description)
+			}
+		}
+	}
+}
+
 func TestClassifyTransformerStep_MixedStatus(t *testing.T) {
 	step := mirthxml.Step{
 		Script: `msg['PID']['PID.3']['PID.3.1'] = 'STATIC';
