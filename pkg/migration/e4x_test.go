@@ -205,32 +205,32 @@ if (msg['PID']['PID.3']['PID.3.1'] == '') {
 	}
 }
 
-func TestClassifyTransformerStep_JSON_NotExternalCall(t *testing.T) {
-	step := mirthxml.Step{Script: "var s = JSON.stringify(x);"}
+func TestClassifyTransformerStep_JSONNotExternalCall(t *testing.T) {
+	step := mirthxml.Step{Script: "var s = JSON.stringify(msg);"}
 	res := ClassifyTransformerStep(step)
 	for _, p := range res.Patterns {
 		if p.Category == CategoryExternalCall {
-			t.Errorf("JSON.stringify should not be classified as external call, got %s", p.Description)
+			t.Errorf("JSON.stringify should not be classified as external call")
 		}
 	}
 }
 
-func TestClassifyTransformerStep_Date_NotExternalCall(t *testing.T) {
-	step := mirthxml.Step{Script: "var d = Date();"}
+func TestClassifyTransformerStep_DateNotExternalCall(t *testing.T) {
+	step := mirthxml.Step{Script: "var now = Date();"}
 	res := ClassifyTransformerStep(step)
 	for _, p := range res.Patterns {
 		if p.Category == CategoryExternalCall {
-			t.Errorf("Date should not be classified as external call, got %s", p.Description)
+			t.Errorf("Date should not be classified as external call")
 		}
 	}
 }
 
-func TestClassifyTransformerStep_Math_NotExternalCall(t *testing.T) {
+func TestClassifyTransformerStep_MathNotExternalCall(t *testing.T) {
 	step := mirthxml.Step{Script: "var m = Math.max(a, b);"}
 	res := ClassifyTransformerStep(step)
 	for _, p := range res.Patterns {
 		if p.Category == CategoryExternalCall {
-			t.Errorf("Math.max should not be classified as external call, got %s", p.Description)
+			t.Errorf("Math.max should not be classified as external call")
 		}
 	}
 }
