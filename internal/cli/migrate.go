@@ -3,6 +3,7 @@ package cli
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 
 	"github.com/sroopra/ghega/pkg/migration"
 )
@@ -41,8 +42,12 @@ func runMigrateMirth(args []string) error {
 	}
 
 	// --samples and --expected are reserved for future golden-file testing.
-	_ = samples
-	_ = expected
+	if *samples != "" {
+		slog.Warn("--samples is reserved for future use and currently has no effect", slog.String("path", *samples))
+	}
+	if *expected != "" {
+		slog.Warn("--expected is reserved for future use and currently has no effect", slog.String("path", *expected))
+	}
 
 	_, err := migration.GenerateMigrationReports(exportDir, *out)
 	if err != nil {
