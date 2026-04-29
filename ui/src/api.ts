@@ -64,3 +64,32 @@ export async function listAlerts(): Promise<Alert[]> {
   const res = await fetch(`${API_BASE}/api/v1/alerts`)
   return handleResponse<Alert[]>(res)
 }
+
+export interface MigrationReport {
+  id: string
+  channel_name: string
+  original_name: string
+  status: string
+  rewrite_tasks_count: number
+  warnings_count: number
+}
+
+export interface MigrationDetail {
+  channel_name: string
+  original_name: string
+  status: string
+  auto_converted: { element: string; description: string }[]
+  needs_rewrite: { severity: string; description: string; category?: string }[]
+  unsupported: { feature: string; description: string }[]
+  warnings: string[]
+}
+
+export async function listMigrations(): Promise<MigrationReport[]> {
+  const res = await fetch(`${API_BASE}/api/v1/migrations`)
+  return handleResponse<MigrationReport[]>(res)
+}
+
+export async function getMigration(id: string): Promise<MigrationDetail> {
+  const res = await fetch(`${API_BASE}/api/v1/migrations/${id}`)
+  return handleResponse<MigrationDetail>(res)
+}
