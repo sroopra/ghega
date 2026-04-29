@@ -109,7 +109,23 @@ type MetaDataMap struct {
 // MapEntry is a generic key/value pair used in Mirth metadata.
 type MapEntry struct {
 	XMLName xml.Name `xml:"entry"`
-	String  []string `xml:"string"`
+	Strings []string `xml:"string"`
+}
+
+// Key returns the first string element (the map key) if present.
+func (m MapEntry) Key() string {
+	if len(m.Strings) > 0 {
+		return m.Strings[0]
+	}
+	return ""
+}
+
+// Value returns the second string element (the map value) if present.
+func (m MapEntry) Value() string {
+	if len(m.Strings) > 1 {
+		return m.Strings[1]
+	}
+	return ""
 }
 
 // ChannelProperty captures top-level channel properties.

@@ -43,6 +43,18 @@ const syntheticChannelXML = `<?xml version="1.0" encoding="UTF-8"?>
         </rule>
       </rules>
     </filter>
+    <metaData>
+      <map>
+        <entry>
+          <string>key1</string>
+          <string>value1</string>
+        </entry>
+        <entry>
+          <string>key2</string>
+          <string>value2</string>
+        </entry>
+      </map>
+    </metaData>
   </sourceConnector>
   <destinationConnectors>
     <connector>
@@ -59,6 +71,14 @@ const syntheticChannelXML = `<?xml version="1.0" encoding="UTF-8"?>
       <filter>
         <rules/>
       </filter>
+      <metaData>
+        <map>
+          <entry>
+            <string>destKey</string>
+            <string>destValue</string>
+          </entry>
+        </map>
+      </metaData>
     </connector>
     <connector>
       <name>File Destination</name>
@@ -259,6 +279,65 @@ func TestParseChannelDestinationConnectors(t *testing.T) {
 	}
 	if fileProps.Directory != "/tmp/synthetic/out" {
 		t.Errorf("file directory: got %q", fileProps.Directory)
+	}
+}
+
+func TestParseChannelMetaData(t *testing.T) {
+	ch, err := ParseChannel([]byte(syntheticChannelXML))
+	if err != nil {
+		t.Fatalf("parse channel: %v", err)
+	}
+
+	src := ch.SourceConnector
+	if len(src.MetaData.MapEntries) != 2 {
+		t.Fatalf("expected 2 source metadata entries, got %d", len(src.MetaData.MapEntries))
+	}
+	entry0 := src.MetaData.MapEntries[0]
+	if entry0.Key() != "key1" {
+		t.Errorf("source metaData[0] key: got %q, want %q", entry0.Key(), "key1")
+	}
+	if entry0.Value() != "value1" {
+		t.Errorf("source metaData[0] value: got %q, want %q", entry0.Value(), "value1")
+	}
+	entry1 := src.MetaData.MapEntries[1]
+	if entry1.Key() != "key2" {
+		t.Errorf("source metaData[1] key: got %q, want %q", entry1.Key(), "key2")
+	}
+	if entry1.Value() != "value2" {
+		t.Errorf("source metaData[1] value: got %q, want %q", entry1.Value(), "value2")
+	}
+
+	if len(ch.DestinationConnectors) == 0 {
+		t.Fatal("expected at least 1 destination connector")
+	}
+	dest := ch.DestinationConnectors[0]
+	if len(dest.MetaData.MapEntries) != 1 {
+		t.Fatalf("expected 1 destination metadata entry, got %d", len(dest.MetaData.MapEntries))
+	}
+	de := dest.MetaData.MapEntries[0]
+	if de.Key() != "destKey" {
+		t.Errorf("dest metaData[0] key: got %q, want %q", de.Key(), "destKey")
+	}
+	if de.Value() != "destValue" {
+		t.Errorf("dest metaData[0] value: got %q, want %q", de.Value(), "destValue")
+	}
+}
+
+func TestMapEntryKeyValueBoundsChecking(t *testing.T) {
+	empty := MapEntry{Strings: []string{}}
+	if empty.Key() != "" {
+		t.Errorf("empty Key(): got %q, want %q", empty.Key(), "")
+	}
+	if empty.Value() != "" {
+		t.Errorf("empty Value(): got %q, want %q", empty.Value(), "")
+	}
+
+	onlyKey := MapEntry{Strings: []string{"onlyKey"}}
+	if onlyKey.Key() != "onlyKey" {
+		t.Errorf("onlyKey Key(): got %q, want %q", onlyKey.Key(), "onlyKey")
+	}
+	if onlyKey.Value() != "" {
+		t.Errorf("onlyKey Value(): got %q, want %q", onlyKey.Value(), "")
 	}
 }
 
