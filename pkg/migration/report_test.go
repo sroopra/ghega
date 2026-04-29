@@ -402,4 +402,14 @@ func TestGenerateMigrationReports_NameCollision(t *testing.T) {
 	if !strings.Contains(string(data), "collision") {
 		t.Errorf("expected name collision warning in report, got:\n%s", string(data))
 	}
+
+	// Verify channel.yaml name matches the renamed directory.
+	chPath := filepath.Join(secondDir, "channel.yaml")
+	chData, err := os.ReadFile(chPath)
+	if err != nil {
+		t.Fatalf("read channel.yaml: %v", err)
+	}
+	if !strings.Contains(string(chData), "name: adt-feed-2") {
+		t.Errorf("expected channel.yaml name to match renamed directory, got:\n%s", string(chData))
+	}
 }
