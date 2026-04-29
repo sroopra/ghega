@@ -216,6 +216,16 @@ func processChannel(mch *mirthxml.Channel, outDir, samplesDir, expectedDir strin
 
 	// Write channel.yaml
 	convResult.Channel.Mappings = mappings
+
+	if valErrs := channel.Validate(convResult.Channel); len(valErrs) > 0 {
+		var msgs []string
+		for _, e := range valErrs {
+			msgs = append(msgs, e.Message)
+		}
+		report.Warnings = append(report.Warnings,
+			fmt.Sprintf("Generated channel definition failed validation: %s", strings.Join(msgs, "; ")))
+	}
+
 	chData, err := yaml.Marshal(convResult.Channel)
 	if err != nil {
 		return nil, fmt.Errorf("marshal channel: %w", err)

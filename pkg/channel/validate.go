@@ -20,6 +20,11 @@ var (
 	validDestTypes    = map[string]bool{"http": true, "file": true, "sftp": true, "db": true}
 )
 
+// Validate checks a Channel for structural and semantic correctness.
+func Validate(ch Channel) []ValidationError {
+	return validateChannel(&ch)
+}
+
 // ValidateYAML parses YAML into a Channel and returns validation errors.
 func ValidateYAML(data []byte) (*Channel, []ValidationError) {
 	var ch Channel
