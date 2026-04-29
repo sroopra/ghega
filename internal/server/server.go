@@ -195,9 +195,8 @@ func (s *Server) handleGetMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListChannels(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, []channelResponse{
-		{ID: "adt-a01", Name: "ADT A01 MLLP to HTTP"},
-	})
+	// TODO: Wire this to pkg/channelstore once channels are persisted through the API.
+	writeJSON(w, []channelResponse{})
 }
 
 func (s *Server) handleListAlerts(w http.ResponseWriter, r *http.Request) {
