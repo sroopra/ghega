@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<channel version="3.12.0">
+  <id>ch-simple-001</id>
+  <name>ADT A01 Feed</name>
+  <description>Simple ADT A01 from Mirth</description>
+  <enabled>true</enabled>
+  <revision>1</revision>
+  <sourceConnector>
+    <name>MLLP Source</name>
+    <enabled>true</enabled>
+    <properties class="com.mirth.connect.connectors.tcp.TcpListenerProperties">
+      <listenerConnectorProperties>
+        <host>0.0.0.0</host>
+        <port>6661</port>
+      </listenerConnectorProperties>
+    </properties>
+    <transformer>
+      <steps/>
+    </transformer>
+    <filter>
+      <rules/>
+    </filter>
+  </sourceConnector>
+  <destinationConnectors>
+    <connector>
+      <name>HTTP Destination</name>
+      <enabled>true</enabled>
+      <properties class="com.mirth.connect.connectors.http.HttpDispatcherProperties">
+        <host>downstream.example.com</host>
+        <port>8080</port>
+        <method>POST</method>
+      </properties>
+      <transformer>
+        <steps/>
+      </transformer>
+      <filter>
+        <rules/>
+      </filter>
+    </connector>
+  </destinationConnectors>
+  <properties/>
+</channel>

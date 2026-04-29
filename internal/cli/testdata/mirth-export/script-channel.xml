@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<channel version="3.12.0">
+  <id>ch-script-002</id>
+  <name>Script_Channel</name>
+  <description>Channel with JS scripts</description>
+  <enabled>true</enabled>
+  <revision>1</revision>
+  <sourceConnector>
+    <name>MLLP Source</name>
+    <enabled>true</enabled>
+    <properties class="com.mirth.connect.connectors.tcp.TcpListenerProperties">
+      <listenerConnectorProperties>
+        <host>0.0.0.0</host>
+        <port>6661</port>
+      </listenerConnectorProperties>
+    </properties>
+    <transformer>
+      <steps>
+        <step>
+          <sequenceNumber>0</sequenceNumber>
+          <name>Set MRN</name>
+          <script>msg['PID']['PID.3']['PID.3.1'] = 'UNKNOWN';</script>
+          <type>JavaScript</type>
+        </step>
+        <step>
+          <sequenceNumber>1</sequenceNumber>
+          <name>Conditional Logic</name>
+          <script>if (msg['PID']['PID.3']['PID.3.1'] == '') { msg['PID']['PID.3']['PID.3.1'] = 'UNKNOWN'; }</script>
+          <type>JavaScript</type>
+        </step>
+      </steps>
+    </transformer>
+    <filter>
+      <rules>
+        <rule>
+          <sequenceNumber>0</sequenceNumber>
+          <name>Always True</name>
+          <script>true;</script>
+          <operator>AND</operator>
+        </rule>
+      </rules>
+    </filter>
+  </sourceConnector>
+  <destinationConnectors>
+    <connector>
+      <name>HTTP Destination</name>
+      <enabled>true</enabled>
+      <properties class="com.mirth.connect.connectors.http.HttpDispatcherProperties">
+        <host>example.com</host>
+        <port>80</port>
+        <method>POST</method>
+      </properties>
+      <transformer>
+        <steps/>
+      </transformer>
+      <filter>
+        <rules/>
+      </filter>
+    </connector>
+  </destinationConnectors>
+  <preprocessingScript>logger.info('pre');</preprocessingScript>
+  <postprocessingScript>logger.info('post');</postprocessingScript>
+  <properties/>
+</channel>
