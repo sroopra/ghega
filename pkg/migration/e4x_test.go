@@ -204,3 +204,33 @@ if (msg['PID']['PID.3']['PID.3.1'] == '') {
 		t.Errorf("expected mixed status, got %s", res.Status)
 	}
 }
+
+func TestClassifyTransformerStep_JSONNotExternalCall(t *testing.T) {
+	step := mirthxml.Step{Script: "var s = JSON.stringify(msg);"}
+	res := ClassifyTransformerStep(step)
+	for _, p := range res.Patterns {
+		if p.Category == CategoryExternalCall {
+			t.Errorf("JSON.stringify should not be classified as external call")
+		}
+	}
+}
+
+func TestClassifyTransformerStep_DateNotExternalCall(t *testing.T) {
+	step := mirthxml.Step{Script: "var now = Date();"}
+	res := ClassifyTransformerStep(step)
+	for _, p := range res.Patterns {
+		if p.Category == CategoryExternalCall {
+			t.Errorf("Date should not be classified as external call")
+		}
+	}
+}
+
+func TestClassifyTransformerStep_MathNotExternalCall(t *testing.T) {
+	step := mirthxml.Step{Script: "var m = Math.max(a, b);"}
+	res := ClassifyTransformerStep(step)
+	for _, p := range res.Patterns {
+		if p.Category == CategoryExternalCall {
+			t.Errorf("Math.max should not be classified as external call")
+		}
+	}
+}
