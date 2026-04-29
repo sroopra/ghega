@@ -176,22 +176,16 @@ func processChannel(mch *mirthxml.Channel, outDir string) (*ChannelMigrationRepo
 		report.Status = "auto-converted"
 	}
 
-	channelDir := filepath.Join(outDir, report.ChannelName)
-	if _, err := os.Stat(channelDir); err == nil {
-		suffix := 2
-		for {
-			candidate := fmt.Sprintf("%s-%d", report.ChannelName, suffix)
-			candidateDir := filepath.Join(outDir, candidate)
-			if _, err := os.Stat(candidateDir); os.IsNotExist(err) {
-				report.ChannelName = candidate
-				convResult.Channel.Name = candidate
-				report.Warnings = append(report.Warnings,
-					fmt.Sprintf("channel name collision: renamed from %q to %q", mch.Name, candidate))
-				channelDir = candidateDir
-				break
-			}
-			suffix++
-		}
+	channelDir, err := uniqueChannelDir(outDir, report.ChannelName)
+	if err != nil {
+		return nil, fmt.Errorf("resolve channel directory: %w", err)
+	}
+	if channelDir != filepath.Join(outDir, report.ChannelName) {
+		newName := filepath.Base(channelDir)
+		report.Warnings = append(report.Warnings,
+			fmt.Sprintf("channel name collision: renamed from %q to %q", mch.Name, newName))
+		report.ChannelName = newName
+		convResult.Channel.Name = newName
 	}
 	if err := os.MkdirAll(channelDir, 0755); err != nil {
 		return nil, fmt.Errorf("create channel directory: %w", err)
@@ -226,6 +220,31 @@ func processChannel(mch *mirthxml.Channel, outDir string) (*ChannelMigrationRepo
 	}
 
 	return report, nil
+}
+
+// uniqueChannelDir returns a directory path under outDir that does not yet
+// exist. If the base name already exists, it appends an incrementing numeric
+// suffix (e.g. "adt-feed-2") until an unused name is found.
+func uniqueChannelDir(outDir, name string) (string, error) {
+	channelDir := filepath.Join(outDir, name)
+	_, err := os.Stat(channelDir)
+	if os.IsNotExist(err) {
+		return channelDir, nil
+	}
+	if err != nil {
+		return "", err
+	}
+
+	for i := 2; ; i++ {
+		candidate := filepath.Join(outDir, fmt.Sprintf("%s-%d", name, i))
+		_, err := os.Stat(candidate)
+		if os.IsNotExist(err) {
+			return candidate, nil
+		}
+		if err != nil {
+			return "", err
+		}
+	}
 }
 
 func mergeClassification(report *ChannelMigrationReport, cr ClassificationResult, mappings *[]mapping.Mapping) {

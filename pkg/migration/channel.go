@@ -89,10 +89,16 @@ func hasScripts(mch *mirthxml.Channel) bool {
 			}
 		}
 	}
-	if strings.TrimSpace(mch.PreprocessorScript) != "" || strings.TrimSpace(mch.PostprocessorScript) != "" {
+	if strings.TrimSpace(mch.PreprocessorScript) != "" {
 		return true
 	}
-	if strings.TrimSpace(mch.DeployScript) != "" || strings.TrimSpace(mch.UndeployScript) != "" {
+	if strings.TrimSpace(mch.PostprocessorScript) != "" {
+		return true
+	}
+	if strings.TrimSpace(mch.DeployScript) != "" {
+		return true
+	}
+	if strings.TrimSpace(mch.UndeployScript) != "" {
 		return true
 	}
 	return false
