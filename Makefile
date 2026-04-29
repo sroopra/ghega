@@ -82,3 +82,13 @@ ui-dev:
 ## ui-audit: run dependency audit on the UI
 ui-audit:
 	bash scripts/ui-dependency-audit.sh
+
+.PHONY: eval-skills
+## eval-skills: evaluate all skills under ai/skills/ (placeholder — no LLM calls)
+eval-skills:
+	bash scripts/eval-skills.sh
+
+.PHONY: rename-product
+## rename-product: rename the product across codebase (usage: make rename-product OLD=ghega NEW=<new-slug>)
+rename-product:
+	bash scripts/rename-product.sh
