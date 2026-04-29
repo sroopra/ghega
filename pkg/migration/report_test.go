@@ -266,6 +266,86 @@ func TestGenerateMigrationReports_NoPHI(t *testing.T) {
 	}
 }
 
+func TestGenerateMigrationReports_InvalidChannelValidationWarning(t *testing.T) {
+	tmpDir := t.TempDir()
+	exportDir := filepath.Join(tmpDir, "export")
+	outDir := filepath.Join(tmpDir, "out")
+
+	if err := os.MkdirAll(exportDir, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	// Use an unsupported source connector so that source.type is empty,
+	// which will fail channel validation.
+	chXML := `<?xml version="1.0" encoding="UTF-8"?>
+<channel version="3.12.0">
+  <id>ch-invalid</id>
+  <name>Invalid Source Channel</name>
+  <description>Channel with unsupported source</description>
+  <enabled>true</enabled>
+  <revision>1</revision>
+  <sourceConnector>
+    <name>Unsupported Source</name>
+    <enabled>true</enabled>
+    <properties class="com.mirth.connect.connectors.vm.VmReceiverProperties">
+    </properties>
+    <transformer>
+      <steps/>
+    </transformer>
+    <filter>
+      <rules/>
+    </filter>
+  </sourceConnector>
+  <destinationConnectors>
+    <connector>
+      <name>HTTP Destination</name>
+      <enabled>true</enabled>
+      <properties class="com.mirth.connect.connectors.http.HttpDispatcherProperties">
+        <host>example.com</host>
+        <port>80</port>
+        <method>POST</method>
+      </properties>
+      <transformer>
+        <steps/>
+      </transformer>
+      <filter>
+        <rules/>
+      </filter>
+    </connector>
+  </destinationConnectors>
+  <properties/>
+</channel>`
+
+	if err := os.WriteFile(filepath.Join(exportDir, "invalid.xml"), []byte(chXML), 0644); err != nil {
+		t.Fatalf("write channel xml: %v", err)
+	}
+
+	summary, err := GenerateMigrationReports(exportDir, outDir, "", "")
+	if err != nil {
+		t.Fatalf("generate reports: %v", err)
+	}
+
+	if summary.TotalChannels != 1 {
+		t.Errorf("expected 1 channel, got %d", summary.TotalChannels)
+	}
+
+	// Verify validation warning in report.
+	rptPath := filepath.Join(outDir, "invalid-source-channel", "migration-report.yaml")
+	rptData, err := os.ReadFile(rptPath)
+	if err != nil {
+		t.Fatalf("read migration report: %v", err)
+	}
+	if !strings.Contains(string(rptData), "Generated channel definition failed validation") {
+		t.Errorf("expected validation warning in report, got:\n%s", string(rptData))
+	}
+
+	// Verify channel.yaml was still written despite validation failure.
+	chPath := filepath.Join(outDir, "invalid-source-channel", "channel.yaml")
+	if _, err := os.Stat(chPath); os.IsNotExist(err) {
+		t.Fatalf("expected channel.yaml to be written even when validation fails")
+	}
+}
+
 func TestWriteChannelYAML(t *testing.T) {
 	tmpDir := t.TempDir()
 	path := filepath.Join(tmpDir, "channel.yaml")

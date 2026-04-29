@@ -83,9 +83,24 @@ type ChannelSummary struct {
 // expectedDir is also non-empty, outputs are compared against the
 // corresponding expected files.
 func GenerateMigrationReports(exportDir, outDir, samplesDir, expectedDir string) (*SummaryReport, error) {
-	channels, err := mirthxml.ParseChannelsFromDir(exportDir)
+	var channels []*mirthxml.Channel
+
+	info, err := os.Stat(exportDir)
 	if err != nil {
-		return nil, fmt.Errorf("parse channels from dir: %w", err)
+		return nil, fmt.Errorf("stat export path: %w", err)
+	}
+
+	if !info.IsDir() {
+		ch, err := mirthxml.ParseChannelFromFile(exportDir)
+		if err != nil {
+			return nil, fmt.Errorf("parse channel from file: %w", err)
+		}
+		channels = append(channels, ch)
+	} else {
+		channels, err = mirthxml.ParseChannelsFromDir(exportDir)
+		if err != nil {
+			return nil, fmt.Errorf("parse channels from dir: %w", err)
+		}
 	}
 
 	if err := os.MkdirAll(outDir, 0755); err != nil {
@@ -216,6 +231,16 @@ func processChannel(mch *mirthxml.Channel, outDir, samplesDir, expectedDir strin
 
 	// Write channel.yaml
 	convResult.Channel.Mappings = mappings
+
+	if valErrs := channel.Validate(convResult.Channel); len(valErrs) > 0 {
+		var msgs []string
+		for _, e := range valErrs {
+			msgs = append(msgs, e.Message)
+		}
+		report.Warnings = append(report.Warnings,
+			fmt.Sprintf("Generated channel definition failed validation: %s", strings.Join(msgs, "; ")))
+	}
+
 	chData, err := yaml.Marshal(convResult.Channel)
 	if err != nil {
 		return nil, fmt.Errorf("marshal channel: %w", err)

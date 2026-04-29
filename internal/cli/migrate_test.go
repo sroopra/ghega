@@ -123,3 +123,38 @@ func TestMigrateMirth_ChannelYAMLHasMappings(t *testing.T) {
 		t.Errorf("expected rewrite-tasks.yaml to contain tasks, got:\n%s", string(rtYAML))
 	}
 }
+
+func TestMigrateMirth_SingleFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	exportFile := filepath.Join("testdata", "mirth-export", "channel-adt.xml")
+	outDir := filepath.Join(tmpDir, "migrated")
+
+	err := runMigrateMirth([]string{"--out", outDir, exportFile})
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	// Verify summary report exists.
+	summaryPath := filepath.Join(outDir, "migration-report.yaml")
+	if _, err := os.Stat(summaryPath); os.IsNotExist(err) {
+		t.Fatalf("expected summary report at %s", summaryPath)
+	}
+
+	// Verify single channel directory and files.
+	chDir := filepath.Join(outDir, "adt-a01-feed")
+	for _, file := range []string{"channel.yaml", "rewrite-tasks.yaml", "migration-report.yaml"} {
+		p := filepath.Join(chDir, file)
+		if _, err := os.Stat(p); os.IsNotExist(err) {
+			t.Fatalf("expected %s for single-file channel", file)
+		}
+	}
+
+	// Verify the channel report has the expected status.
+	report, err := os.ReadFile(filepath.Join(chDir, "migration-report.yaml"))
+	if err != nil {
+		t.Fatalf("read migration report: %v", err)
+	}
+	if !strings.Contains(string(report), "status: auto-converted") {
+		t.Errorf("expected single file channel to be auto-converted, got:\n%s", string(report))
+	}
+}

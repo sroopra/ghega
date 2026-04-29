@@ -49,6 +49,8 @@ Commands:
   channel rollback   Rollback a channel to a previous revision
   message            Message management commands
   generate           Generate artifacts
+    generate channel     Generate a channel scaffold
+    generate migration-task  Generate a rewrite-tasks.yaml file
   watch              Watch a directory for channel changes
   migrate mirth      Migrate Mirth Connect channels to Ghega
 

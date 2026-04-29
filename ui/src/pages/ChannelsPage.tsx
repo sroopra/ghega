@@ -1,12 +1,6 @@
 import { useEffect, useState } from 'react'
 import { listChannels, type Channel } from '../api.ts'
 
-const MOCK_CHANNELS: Channel[] = [
-  { id: 'demo-channel', name: 'Demo Channel' },
-  { id: 'inbound-orders', name: 'Inbound Orders' },
-  { id: 'notifications', name: 'Notifications' },
-]
-
 export default function ChannelsPage() {
   const [channels, setChannels] = useState<Channel[]>([])
   const [loading, setLoading] = useState(true)
@@ -18,15 +12,15 @@ export default function ChannelsPage() {
     listChannels()
       .then((data) => {
         if (!cancelled) {
-          setChannels(data.length > 0 ? data : MOCK_CHANNELS)
+          setChannels(data)
           setError(null)
         }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          console.warn('API unavailable, using mock data:', err)
-          setChannels(MOCK_CHANNELS)
-          setError(null)
+          const message = err instanceof Error ? err.message : String(err)
+          setError(message)
+          setChannels([])
         }
       })
       .finally(() => {
