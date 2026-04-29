@@ -164,6 +164,7 @@ type HttpDispatcherProperties struct {
 	Host   string `xml:"host"`
 	Port   int    `xml:"port"`
 	Method string `xml:"method"`
+	Secure bool   `xml:"secure"`
 }
 
 // FileReceiverProperties is the property set for file-reader connectors.
@@ -180,18 +181,8 @@ type FileDispatcherProperties struct {
 	Directory string `xml:"directory"`
 }
 
-// DatabaseReaderProperties is the property set for JDBC database reader connectors.
+// DatabaseReaderProperties is the property set for database-reader (source) connectors.
 type DatabaseReaderProperties struct {
-	Driver          string `xml:"driver"`
-	URL             string `xml:"url"`
-	Username        string `xml:"username"`
-	Password        string `xml:"password"`
-	Query           string `xml:"query"`
-	PollingInterval int    `xml:"pollingInterval"`
-}
-
-// DatabaseWriterProperties is the property set for JDBC database writer connectors.
-type DatabaseWriterProperties struct {
 	Driver   string `xml:"driver"`
 	URL      string `xml:"url"`
 	Username string `xml:"username"`
@@ -199,23 +190,30 @@ type DatabaseWriterProperties struct {
 	Query    string `xml:"query"`
 }
 
+// DatabaseWriterProperties is the property set for database-writer (destination) connectors.
+type DatabaseWriterProperties struct {
+	Driver   string `xml:"driver"`
+	URL      string `xml:"url"`
+	Username string `xml:"username"`
+	Password string `xml:"password"`
+}
+
 // SftpReceiverProperties is the property set for SFTP reader connectors.
 type SftpReceiverProperties struct {
-	Host            string `xml:"host"`
-	Port            int    `xml:"port"`
-	Username        string `xml:"username"`
-	Password        string `xml:"password"`
-	RemotePath      string `xml:"remotePath"`
-	PollingInterval int    `xml:"pollingInterval"`
+	Host     string `xml:"host"`
+	Port     int    `xml:"port"`
+	Username string `xml:"username"`
+	Password string `xml:"password"`
+	Path     string `xml:"path"`
 }
 
 // SftpDispatcherProperties is the property set for SFTP writer connectors.
 type SftpDispatcherProperties struct {
-	Host       string `xml:"host"`
-	Port       int    `xml:"port"`
-	Username   string `xml:"username"`
-	Password   string `xml:"password"`
-	RemotePath string `xml:"remotePath"`
+	Host     string `xml:"host"`
+	Port     int    `xml:"port"`
+	Username string `xml:"username"`
+	Password string `xml:"password"`
+	Path     string `xml:"path"`
 }
 
 // ---------------------------------------------------------------------------

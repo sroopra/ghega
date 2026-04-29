@@ -22,6 +22,8 @@ const (
 	CategoryDestinationDispatch PatternCategory = "destination_dispatch"
 	CategoryLogger              PatternCategory = "logger"
 	CategoryExternalCall        PatternCategory = "external_call"
+	CategoryChannelMapAccess    PatternCategory = "channel_map_access"
+	CategoryGlobalMapAccess     PatternCategory = "global_map_access"
 )
 
 // Disposition indicates whether a pattern can be auto-converted.
@@ -67,6 +69,7 @@ var (
 	stringLiteralRe = regexp.MustCompile(`^["'](.*)["']$`)
 	staticValueRe  = regexp.MustCompile(`^\d+(\.\d+)?$|^(true|false|null)$`)
 	externalCallRe = regexp.MustCompile(`(?m)([a-zA-Z_$][a-zA-Z0-9_$]*(?:\s*\.\s*[a-zA-Z_$][a-zA-Z0-9_$]*)*)\s*\(`)
+	channelMapRe   = regexp.MustCompile(`(?m)\b(channelMap|globalMap)\s*\.\s*(put|get)\s*\(`)
 )
 
 var jsKeywords = map[string]bool{
@@ -81,6 +84,7 @@ var jsKeywords = map[string]bool{
 var knownCallRoots = map[string]bool{
 	"msg": true, "logger": true, "destinationSet": true, "router": true,
 	"responseMap": true, "print": true, "debug": true, "XML": true,
+	"channelMap": true, "globalMap": true,
 	// JavaScript built-ins — not external libraries, but need Go equivalents on rewrite
 	"JSON": true, "Date": true, "Array": true, "Math": true, "String": true, "Number": true,
 	"parseInt": true, "parseFloat": true, "isNaN": true, "isFinite": true,
@@ -225,6 +229,31 @@ func classifyLine(line string) []ClassifiedPattern {
 			}
 
 			patterns = append(patterns, cp)
+		}
+	}
+
+	if matches := channelMapRe.FindAllStringSubmatch(line, -1); len(matches) > 0 {
+		for _, m := range matches {
+			root := m[1]
+			method := m[2]
+			var cat PatternCategory
+			var desc string
+			if root == "channelMap" {
+				cat = CategoryChannelMapAccess
+				desc = "channelMap." + method + "() call detected; should be replaced with Go variables or channel config."
+			} else {
+				cat = CategoryGlobalMapAccess
+				desc = "globalMap." + method + "() call detected; should be replaced with Go variables or channel config."
+			}
+			patterns = append(patterns, ClassifiedPattern{
+				Category:    cat,
+				Disposition: DispositionNeedsRewrite,
+				Description: desc,
+				RewriteTask: &RewriteTask{
+					Severity:    "medium",
+					Description: "Replace " + root + "." + method + "() with Go variables or channel configuration.",
+				},
+			})
 		}
 	}
 

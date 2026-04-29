@@ -398,8 +398,7 @@ func TestDatabaseReaderPropertiesUnmarshal(t *testing.T) {
 		<url>jdbc:postgresql://localhost:5432/testdb</url>
 		<username>admin</username>
 		<password>secret</password>
-		<query>SELECT * FROM patients</query>
-		<pollingInterval>5000</pollingInterval>`)
+		<query>SELECT * FROM patients</query>`)
 	p := Properties{Class: "com.mirth.connect.connectors.jdbc.DatabaseReaderProperties", Raw: raw}
 
 	var props DatabaseReaderProperties
@@ -420,9 +419,6 @@ func TestDatabaseReaderPropertiesUnmarshal(t *testing.T) {
 	}
 	if props.Query != "SELECT * FROM patients" {
 		t.Errorf("query: got %q", props.Query)
-	}
-	if props.PollingInterval != 5000 {
-		t.Errorf("pollingInterval: got %d, want %d", props.PollingInterval, 5000)
 	}
 }
 
@@ -460,8 +456,7 @@ func TestSftpReceiverPropertiesUnmarshal(t *testing.T) {
 		<port>22</port>
 		<username>sftpuser</username>
 		<password>sftppass</password>
-		<remotePath>/inbox/pending</remotePath>
-		<pollingInterval>10000</pollingInterval>`)
+		<path>/inbox/pending</path>`)
 	p := Properties{Class: "com.mirth.connect.connectors.sftp.SftpReceiverProperties", Raw: raw}
 
 	var props SftpReceiverProperties
@@ -480,11 +475,8 @@ func TestSftpReceiverPropertiesUnmarshal(t *testing.T) {
 	if props.Password != "sftppass" {
 		t.Errorf("password: got %q", props.Password)
 	}
-	if props.RemotePath != "/inbox/pending" {
-		t.Errorf("remotePath: got %q", props.RemotePath)
-	}
-	if props.PollingInterval != 10000 {
-		t.Errorf("pollingInterval: got %d, want %d", props.PollingInterval, 10000)
+	if props.Path != "/inbox/pending" {
+		t.Errorf("path: got %q", props.Path)
 	}
 }
 
@@ -493,7 +485,7 @@ func TestSftpDispatcherPropertiesUnmarshal(t *testing.T) {
 		<port>22</port>
 		<username>sftpuser</username>
 		<password>sftppass</password>
-		<remotePath>/outbox/completed</remotePath>`)
+		<path>/outbox/completed</path>`)
 	p := Properties{Class: "com.mirth.connect.connectors.sftp.SftpDispatcherProperties", Raw: raw}
 
 	var props SftpDispatcherProperties
@@ -512,7 +504,7 @@ func TestSftpDispatcherPropertiesUnmarshal(t *testing.T) {
 	if props.Password != "sftppass" {
 		t.Errorf("password: got %q", props.Password)
 	}
-	if props.RemotePath != "/outbox/completed" {
-		t.Errorf("remotePath: got %q", props.RemotePath)
+	if props.Path != "/outbox/completed" {
+		t.Errorf("path: got %q", props.Path)
 	}
 }
