@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -13,6 +15,14 @@ import (
 	"github.com/sroopra/ghega/pkg/mapping"
 	"github.com/sroopra/ghega/pkg/mirthxml"
 )
+
+// SampleResult records the outcome of running a sample HL7 message through the
+// channel's auto-converted mappings.
+type SampleResult struct {
+	Sample string `yaml:"sample"`
+	Status string `yaml:"status"`
+	Output string `yaml:"output"`
+}
 
 // ChannelMigrationReport is the per-channel migration report.
 type ChannelMigrationReport struct {
@@ -23,6 +33,7 @@ type ChannelMigrationReport struct {
 	NeedsRewrite  []RewriteTaskItem `yaml:"needsRewrite"`
 	Unsupported   []UnsupportedItem `yaml:"unsupported"`
 	Warnings      []string          `yaml:"warnings"`
+	SampleResults []SampleResult    `yaml:"sampleResults,omitempty"`
 }
 
 // ConvertedItem describes a successfully migrated element.
@@ -52,6 +63,8 @@ type SummaryReport struct {
 	TotalAutoConverted int              `yaml:"totalAutoConverted"`
 	TotalNeedsRewrite  int              `yaml:"totalNeedsRewrite"`
 	TotalUnsupported   int              `yaml:"totalUnsupported"`
+	TotalSamples       int              `yaml:"totalSamples"`
+	TotalMatched       int              `yaml:"totalMatched"`
 }
 
 // ChannelSummary is a condensed view of a single channel's migration result.
@@ -65,7 +78,11 @@ type ChannelSummary struct {
 // GenerateMigrationReports walks exportDir for Mirth channel XML files,
 // converts each to a Ghega channel, classifies transformers, and writes
 // per-channel reports plus a summary report to outDir.
-func GenerateMigrationReports(exportDir, outDir string) (*SummaryReport, error) {
+// When samplesDir is non-empty, each .hl7 file is run through the mapping
+// engine and the results are recorded in the per-channel report.  When
+// expectedDir is also non-empty, outputs are compared against the
+// corresponding expected files.
+func GenerateMigrationReports(exportDir, outDir, samplesDir, expectedDir string) (*SummaryReport, error) {
 	channels, err := mirthxml.ParseChannelsFromDir(exportDir)
 	if err != nil {
 		return nil, fmt.Errorf("parse channels from dir: %w", err)
@@ -81,7 +98,7 @@ func GenerateMigrationReports(exportDir, outDir string) (*SummaryReport, error) 
 	}
 
 	for _, mch := range channels {
-		report, err := processChannel(mch, outDir)
+		report, err := processChannel(mch, outDir, samplesDir, expectedDir)
 		if err != nil {
 			return nil, fmt.Errorf("process channel %s: %w", mch.Name, err)
 		}
@@ -101,6 +118,12 @@ func GenerateMigrationReports(exportDir, outDir string) (*SummaryReport, error) 
 		case "unsupported":
 			summary.TotalUnsupported++
 		}
+		summary.TotalSamples += len(report.SampleResults)
+		for _, sr := range report.SampleResults {
+			if sr.Status == "matched" {
+				summary.TotalMatched++
+			}
+		}
 	}
 
 	summaryPath := filepath.Join(outDir, "migration-report.yaml")
@@ -115,7 +138,7 @@ func GenerateMigrationReports(exportDir, outDir string) (*SummaryReport, error) 
 	return summary, nil
 }
 
-func processChannel(mch *mirthxml.Channel, outDir string) (*ChannelMigrationReport, error) {
+func processChannel(mch *mirthxml.Channel, outDir, samplesDir, expectedDir string) (*ChannelMigrationReport, error) {
 	convResult, err := ConvertChannel(mch)
 	if err != nil {
 		return nil, fmt.Errorf("convert channel: %w", err)
@@ -210,6 +233,15 @@ func processChannel(mch *mirthxml.Channel, outDir string) (*ChannelMigrationRepo
 		return nil, fmt.Errorf("write rewrite-tasks.yaml: %w", err)
 	}
 
+	// Run samples if requested.
+	if samplesDir != "" {
+		sampleResults, err := runSamples(samplesDir, expectedDir, mappings)
+		if err != nil {
+			return nil, fmt.Errorf("run samples: %w", err)
+		}
+		report.SampleResults = sampleResults
+	}
+
 	// Write per-channel migration-report.yaml
 	rptData, err := yaml.Marshal(report)
 	if err != nil {
@@ -220,6 +252,100 @@ func processChannel(mch *mirthxml.Channel, outDir string) (*ChannelMigrationRepo
 	}
 
 	return report, nil
+}
+
+// runSamples walks samplesDir for .hl7 files, runs each through the mapping
+// engine, and optionally compares the output against files in expectedDir.
+func runSamples(samplesDir, expectedDir string, mappings []mapping.Mapping) ([]SampleResult, error) {
+	entries, err := os.ReadDir(samplesDir)
+	if err != nil {
+		return nil, fmt.Errorf("read samples directory: %w", err)
+	}
+
+	var results []SampleResult
+	engine := mapping.NewEngine(mappings)
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".hl7") {
+			continue
+		}
+
+		samplePath := filepath.Join(samplesDir, entry.Name())
+		raw, err := os.ReadFile(samplePath)
+		if err != nil {
+			return nil, fmt.Errorf("read sample %s: %w", entry.Name(), err)
+		}
+
+		outMap, err := engine.Apply(raw)
+		if err != nil {
+			return nil, fmt.Errorf("apply mappings to %s: %w", entry.Name(), err)
+		}
+
+		outStr := formatOutputMap(outMap)
+		result := SampleResult{
+			Sample: entry.Name(),
+			Output: outStr,
+		}
+
+		if expectedDir != "" {
+			expectedPath := findExpectedFile(expectedDir, entry.Name())
+			if expectedPath == "" {
+				result.Status = "no-expected"
+			} else {
+				expectedData, err := os.ReadFile(expectedPath)
+				if err != nil {
+					return nil, fmt.Errorf("read expected file %s: %w", expectedPath, err)
+				}
+				if strings.TrimSpace(outStr) == strings.TrimSpace(string(expectedData)) {
+					result.Status = "matched"
+				} else {
+					result.Status = "mismatched"
+				}
+			}
+		} else {
+			result.Status = "no-expected"
+		}
+
+		results = append(results, result)
+	}
+
+	return results, nil
+}
+
+// formatOutputMap renders a map[string]string as a deterministic, human-readable
+// string sorted by key.
+func formatOutputMap(m map[string]string) string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var lines []string
+	for _, k := range keys {
+		lines = append(lines, fmt.Sprintf("%s: %s", k, m[k]))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// findExpectedFile looks in expectedDir for a file that corresponds to the
+// given sample name.  It tries an exact match first, then falls back to
+// common expected-file extensions.
+func findExpectedFile(expectedDir, sampleName string) string {
+	candidates := []string{
+		sampleName,
+		strings.TrimSuffix(sampleName, filepath.Ext(sampleName)) + ".expected",
+		strings.TrimSuffix(sampleName, filepath.Ext(sampleName)) + ".txt",
+		strings.TrimSuffix(sampleName, filepath.Ext(sampleName)) + ".out",
+	}
+
+	for _, name := range candidates {
+		p := filepath.Join(expectedDir, name)
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
 }
 
 // uniqueChannelDir returns a directory path under outDir that does not yet
