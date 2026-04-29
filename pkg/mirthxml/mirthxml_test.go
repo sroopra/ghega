@@ -392,3 +392,127 @@ func TestPropertiesUnmarshalIntoEmpty(t *testing.T) {
 		t.Errorf("expected empty host, got %q", out.Host)
 	}
 }
+
+func TestDatabaseReaderPropertiesUnmarshal(t *testing.T) {
+	raw := []byte(`<driver>org.postgresql.Driver</driver>
+		<url>jdbc:postgresql://localhost:5432/testdb</url>
+		<username>admin</username>
+		<password>secret</password>
+		<query>SELECT * FROM patients</query>
+		<pollingInterval>5000</pollingInterval>`)
+	p := Properties{Class: "com.mirth.connect.connectors.jdbc.DatabaseReaderProperties", Raw: raw}
+
+	var props DatabaseReaderProperties
+	if err := p.UnmarshalInto(&props); err != nil {
+		t.Fatalf("unmarshal database reader properties: %v", err)
+	}
+	if props.Driver != "org.postgresql.Driver" {
+		t.Errorf("driver: got %q, want %q", props.Driver, "org.postgresql.Driver")
+	}
+	if props.URL != "jdbc:postgresql://localhost:5432/testdb" {
+		t.Errorf("url: got %q", props.URL)
+	}
+	if props.Username != "admin" {
+		t.Errorf("username: got %q", props.Username)
+	}
+	if props.Password != "secret" {
+		t.Errorf("password: got %q", props.Password)
+	}
+	if props.Query != "SELECT * FROM patients" {
+		t.Errorf("query: got %q", props.Query)
+	}
+	if props.PollingInterval != 5000 {
+		t.Errorf("pollingInterval: got %d, want %d", props.PollingInterval, 5000)
+	}
+}
+
+func TestDatabaseWriterPropertiesUnmarshal(t *testing.T) {
+	raw := []byte(`<driver>com.mysql.jdbc.Driver</driver>
+		<url>jdbc:mysql://db.example.com:3306/prod</url>
+		<username>writer</username>
+		<password>hunter2</password>
+		<query>INSERT INTO logs (msg) VALUES (?)</query>`)
+	p := Properties{Class: "com.mirth.connect.connectors.jdbc.DatabaseWriterProperties", Raw: raw}
+
+	var props DatabaseWriterProperties
+	if err := p.UnmarshalInto(&props); err != nil {
+		t.Fatalf("unmarshal database writer properties: %v", err)
+	}
+	if props.Driver != "com.mysql.jdbc.Driver" {
+		t.Errorf("driver: got %q", props.Driver)
+	}
+	if props.URL != "jdbc:mysql://db.example.com:3306/prod" {
+		t.Errorf("url: got %q", props.URL)
+	}
+	if props.Username != "writer" {
+		t.Errorf("username: got %q", props.Username)
+	}
+	if props.Password != "hunter2" {
+		t.Errorf("password: got %q", props.Password)
+	}
+	if props.Query != "INSERT INTO logs (msg) VALUES (?)" {
+		t.Errorf("query: got %q", props.Query)
+	}
+}
+
+func TestSftpReceiverPropertiesUnmarshal(t *testing.T) {
+	raw := []byte(`<host>sftp.example.com</host>
+		<port>22</port>
+		<username>sftpuser</username>
+		<password>sftppass</password>
+		<remotePath>/inbox/pending</remotePath>
+		<pollingInterval>10000</pollingInterval>`)
+	p := Properties{Class: "com.mirth.connect.connectors.sftp.SftpReceiverProperties", Raw: raw}
+
+	var props SftpReceiverProperties
+	if err := p.UnmarshalInto(&props); err != nil {
+		t.Fatalf("unmarshal sftp receiver properties: %v", err)
+	}
+	if props.Host != "sftp.example.com" {
+		t.Errorf("host: got %q", props.Host)
+	}
+	if props.Port != 22 {
+		t.Errorf("port: got %d, want %d", props.Port, 22)
+	}
+	if props.Username != "sftpuser" {
+		t.Errorf("username: got %q", props.Username)
+	}
+	if props.Password != "sftppass" {
+		t.Errorf("password: got %q", props.Password)
+	}
+	if props.RemotePath != "/inbox/pending" {
+		t.Errorf("remotePath: got %q", props.RemotePath)
+	}
+	if props.PollingInterval != 10000 {
+		t.Errorf("pollingInterval: got %d, want %d", props.PollingInterval, 10000)
+	}
+}
+
+func TestSftpDispatcherPropertiesUnmarshal(t *testing.T) {
+	raw := []byte(`<host>sftp.example.com</host>
+		<port>22</port>
+		<username>sftpuser</username>
+		<password>sftppass</password>
+		<remotePath>/outbox/completed</remotePath>`)
+	p := Properties{Class: "com.mirth.connect.connectors.sftp.SftpDispatcherProperties", Raw: raw}
+
+	var props SftpDispatcherProperties
+	if err := p.UnmarshalInto(&props); err != nil {
+		t.Fatalf("unmarshal sftp dispatcher properties: %v", err)
+	}
+	if props.Host != "sftp.example.com" {
+		t.Errorf("host: got %q", props.Host)
+	}
+	if props.Port != 22 {
+		t.Errorf("port: got %d, want %d", props.Port, 22)
+	}
+	if props.Username != "sftpuser" {
+		t.Errorf("username: got %q", props.Username)
+	}
+	if props.Password != "sftppass" {
+		t.Errorf("password: got %q", props.Password)
+	}
+	if props.RemotePath != "/outbox/completed" {
+		t.Errorf("remotePath: got %q", props.RemotePath)
+	}
+}
