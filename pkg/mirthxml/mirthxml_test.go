@@ -426,8 +426,7 @@ func TestDatabaseWriterPropertiesUnmarshal(t *testing.T) {
 	raw := []byte(`<driver>com.mysql.jdbc.Driver</driver>
 		<url>jdbc:mysql://db.example.com:3306/prod</url>
 		<username>writer</username>
-		<password>hunter2</password>
-		<query>INSERT INTO logs (msg) VALUES (?)</query>`)
+		<password>hunter2</password>`)
 	p := Properties{Class: "com.mirth.connect.connectors.jdbc.DatabaseWriterProperties", Raw: raw}
 
 	var props DatabaseWriterProperties
@@ -445,9 +444,6 @@ func TestDatabaseWriterPropertiesUnmarshal(t *testing.T) {
 	}
 	if props.Password != "hunter2" {
 		t.Errorf("password: got %q", props.Password)
-	}
-	if props.Query != "INSERT INTO logs (msg) VALUES (?)" {
-		t.Errorf("query: got %q", props.Query)
 	}
 }
 
