@@ -328,3 +328,45 @@ mappings:
 		t.Errorf("expected %q in output, got:\n%s", expected, string(out))
 	}
 }
+
+func TestChannelDeploy_ReturnsError(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+	t.Setenv("GHEGA_DATABASE_URL", dbPath)
+
+	err := runChannelDeploy([]string{filepath.Join(dir, "nonexistent.yaml")})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "deploy failed:") {
+		t.Errorf("expected error to contain 'deploy failed:', got: %s", err.Error())
+	}
+}
+
+func TestChannelDiff_ReturnsError(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+	t.Setenv("GHEGA_DATABASE_URL", dbPath)
+
+	err := runChannelDiff([]string{filepath.Join(dir, "nonexistent.yaml")})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "diff failed:") {
+		t.Errorf("expected error to contain 'diff failed:', got: %s", err.Error())
+	}
+}
+
+func TestChannelRollback_ReturnsError(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "test.db")
+	t.Setenv("GHEGA_DATABASE_URL", dbPath)
+
+	err := runChannelRollback([]string{"nonexistent-channel"})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "rollback failed:") {
+		t.Errorf("expected error to contain 'rollback failed:', got: %s", err.Error())
+	}
+}

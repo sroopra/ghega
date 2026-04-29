@@ -3,7 +3,6 @@ package cli
 import (
 	"flag"
 	"fmt"
-	"os"
 )
 
 func runMessage(args []string) error {
@@ -32,9 +31,7 @@ func runMessageRedeliver(args []string) error {
 		return fmt.Errorf("usage: ghega message redeliver <message-id> --destination <dest>")
 	}
 
-	fmt.Fprintln(os.Stderr, "not yet implemented")
-	os.Exit(1)
-	return nil
+	return fmt.Errorf("redeliver not yet implemented")
 }
 
 func runMessageReplay(args []string) error {
@@ -46,9 +43,7 @@ func runMessageReplay(args []string) error {
 		return fmt.Errorf("usage: ghega message replay <message-id> --as-new")
 	}
 
-	fmt.Fprintln(os.Stderr, "not yet implemented")
-	os.Exit(1)
-	return nil
+	return fmt.Errorf("replay not yet implemented")
 }
 
 func runMessageReplayPreview(args []string) error {
@@ -59,7 +54,5 @@ func runMessageReplayPreview(args []string) error {
 		return fmt.Errorf("usage: ghega message replay-preview <message-id>")
 	}
 
-	fmt.Fprintln(os.Stderr, "not yet implemented")
-	os.Exit(1)
-	return nil
+	return fmt.Errorf("replay-preview not yet implemented")
 }
