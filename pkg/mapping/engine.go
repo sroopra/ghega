@@ -2,7 +2,11 @@ package mapping
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
+
+	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/common/types/ref"
 )
 
 // Apply runs the engine against the provided raw HL7v2 message and returns the
@@ -44,8 +48,62 @@ func (e *Engine) resolve(msg *hl7Message, m Mapping) (string, error) {
 		default:
 			return val, nil
 		}
+	case TransformCEL:
+		val, err := msg.getValue(m.Source)
+		if err != nil {
+			return "", err
+		}
+		return evaluateCEL(m.Expression, val)
 	default:
 		return "", fmt.Errorf("unsupported transform %q", m.Transform)
+	}
+}
+
+// evaluateCEL compiles and evaluates a CEL expression with source bound to the
+// provided string value. The result is returned as a string.
+func evaluateCEL(expr, source string) (string, error) {
+	if expr == "" {
+		return "", fmt.Errorf("empty CEL expression")
+	}
+
+	env, err := cel.NewEnv(cel.Variable("source", cel.StringType))
+	if err != nil {
+		return "", fmt.Errorf("cel env: %w", err)
+	}
+
+	ast, issues := env.Compile(expr)
+	if issues != nil && issues.Err() != nil {
+		return "", fmt.Errorf("cel compile: %w", issues.Err())
+	}
+
+	prg, err := env.Program(ast)
+	if err != nil {
+		return "", fmt.Errorf("cel program: %w", err)
+	}
+
+	out, _, err := prg.Eval(map[string]any{"source": source})
+	if err != nil {
+		return "", fmt.Errorf("cel eval: %w", err)
+	}
+
+	return celValueToString(out)
+}
+
+// celValueToString converts a CEL evaluation result to a Go string.
+func celValueToString(out ref.Val) (string, error) {
+	switch v := out.Value().(type) {
+	case string:
+		return v, nil
+	case int64:
+		return strconv.FormatInt(v, 10), nil
+	case uint64:
+		return strconv.FormatUint(v, 10), nil
+	case float64:
+		return strconv.FormatFloat(v, 'f', -1, 64), nil
+	case bool:
+		return strconv.FormatBool(v), nil
+	default:
+		return "", fmt.Errorf("unsupported CEL result type %T", v)
 	}
 }
 
