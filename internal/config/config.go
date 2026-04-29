@@ -32,3 +32,11 @@ func MLLPPort(defaultPort int) int {
 	}
 	return defaultPort
 }
+
+// MigrationsDir returns the migrations directory from the environment or a default.
+func MigrationsDir(defaultDir string) string {
+	if d := os.Getenv("GHEGA_MIGRATIONS_DIR"); d != "" {
+		return d
+	}
+	return defaultDir
+}
