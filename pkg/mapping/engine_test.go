@@ -214,3 +214,217 @@ func TestEmptyMessage(t *testing.T) {
 		t.Fatal("expected error for empty message")
 	}
 }
+
+func TestEngineApplyCEL(t *testing.T) {
+	raw := []byte(
+		"MSH|^~\\&|GhegaApp|GhegaFac|DestApp|DestFac|20240101120000||ADT^A01|MSG001|P|2.5\r" +
+			"PID|1||MRN12345^^^Hospital^MR||Doe^John^Middle||19800101|M\r",
+	)
+
+	tests := []struct {
+		name      string
+		mappings  []Mapping
+		want      map[string]string
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name: "CEL ternary male",
+			mappings: []Mapping{
+				{Source: "PID-8", Target: "gender", Transform: TransformCEL, Expression: "source == 'M' ? 'Male' : 'Female'"},
+			},
+			want: map[string]string{
+				"gender": "Male",
+			},
+		},
+		{
+			name: "CEL ternary female",
+			mappings: []Mapping{
+				{Source: "PID-8", Target: "gender", Transform: TransformCEL, Expression: "source == 'F' ? 'Female' : 'Other'"},
+			},
+			want: map[string]string{
+				"gender": "Other",
+			},
+		},
+		{
+			name: "CEL string concatenation",
+			mappings: []Mapping{
+				{Source: "PID-5.1", Target: "full_name", Transform: TransformCEL, Expression: "source + ', ' + source"},
+			},
+			want: map[string]string{
+				"full_name": "Doe, Doe",
+			},
+		},
+		{
+			name: "CEL arithmetic",
+			mappings: []Mapping{
+				{Source: "PID-8", Target: "result", Transform: TransformCEL, Expression: "int(source.size()) + 5"},
+			},
+			want: map[string]string{
+				"result": "6",
+			},
+		},
+		{
+			name: "CEL with empty source",
+			mappings: []Mapping{
+				{Source: "PV1-1", Target: "visit", Transform: TransformCEL, Expression: "source == '' ? 'empty' : 'not empty'"},
+			},
+			want: map[string]string{
+				"visit": "empty",
+			},
+		},
+		{
+			name: "CEL invalid expression",
+			mappings: []Mapping{
+				{Source: "PID-8", Target: "gender", Transform: TransformCEL, Expression: "this is not valid"},
+			},
+			wantErr:   true,
+			errSubstr: "cel compile",
+		},
+		{
+			name: "CEL empty expression",
+			mappings: []Mapping{
+				{Source: "PID-8", Target: "gender", Transform: TransformCEL, Expression: ""},
+			},
+			wantErr:   true,
+			errSubstr: "empty CEL expression",
+		},
+		{
+			name: "CEL type mismatch",
+			mappings: []Mapping{
+				{Source: "PID-8", Target: "gender", Transform: TransformCEL, Expression: "source + 1"},
+			},
+			wantErr:   true,
+			errSubstr: "cel compile",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			eng := NewEngine(tt.mappings)
+			got, err := eng.Apply(raw)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tt.errSubstr)
+				}
+				if tt.errSubstr != "" && !contains(err.Error(), tt.errSubstr) {
+					t.Fatalf("expected error containing %q, got %q", tt.errSubstr, err.Error())
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatalf("got %d entries, want %d", len(got), len(tt.want))
+			}
+			for k, wantV := range tt.want {
+				if got[k] != wantV {
+					t.Errorf("key %q: got %q, want %q", k, got[k], wantV)
+				}
+			}
+		})
+	}
+}
+
+func TestEvaluateCELDirectly(t *testing.T) {
+	tests := []struct {
+		name      string
+		expr      string
+		source    string
+		want      string
+		wantErr   bool
+		errSubstr string
+	}{
+		{
+			name:   "ternary true",
+			expr:   "source == 'M' ? 'Male' : 'Female'",
+			source: "M",
+			want:   "Male",
+		},
+		{
+			name:   "ternary false",
+			expr:   "source == 'M' ? 'Male' : 'Female'",
+			source: "F",
+			want:   "Female",
+		},
+		{
+			name:   "string concatenation",
+			expr:   "'Hello, ' + source + '!'",
+			source: "World",
+			want:   "Hello, World!",
+		},
+		{
+			name:   "arithmetic addition",
+			expr:   "int(source) + 10",
+			source: "5",
+			want:   "15",
+		},
+		{
+			name:   "arithmetic multiplication",
+			expr:   "int(source) * 3",
+			source: "4",
+			want:   "12",
+		},
+		{
+			name:   "boolean result true",
+			expr:   "source == 'active'",
+			source: "active",
+			want:   "true",
+		},
+		{
+			name:   "boolean result false",
+			expr:   "source == 'active'",
+			source: "inactive",
+			want:   "false",
+		},
+		{
+			name:   "double quoted strings",
+			expr:   `source == "M" ? "Male" : "Female"`,
+			source: "M",
+			want:   "Male",
+		},
+		{
+			name:      "invalid expression",
+			expr:      "not a valid cel expression",
+			source:    "x",
+			wantErr:   true,
+			errSubstr: "cel compile",
+		},
+		{
+			name:      "empty expression",
+			expr:      "",
+			source:    "x",
+			wantErr:   true,
+			errSubstr: "empty CEL expression",
+		},
+		{
+			name:      "type mismatch",
+			expr:      "source + 1",
+			source:    "hello",
+			wantErr:   true,
+			errSubstr: "cel compile",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := evaluateCEL(tt.expr, tt.source)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tt.errSubstr)
+				}
+				if tt.errSubstr != "" && !contains(err.Error(), tt.errSubstr) {
+					t.Fatalf("expected error containing %q, got %q", tt.errSubstr, err.Error())
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
