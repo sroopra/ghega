@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -353,6 +355,162 @@ func TestListAlerts(t *testing.T) {
 	}
 	if result[0].Severity != alerts.SeverityWarning {
 		t.Errorf("severity = %q, want %q", result[0].Severity, alerts.SeverityWarning)
+	}
+}
+
+func TestListMigrations_EmptyWhenNoDir(t *testing.T) {
+	store := messagestore.NewInMemoryStore()
+	srv := New(store, newTestAlertStore())
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/v1/migrations")
+	if err != nil {
+		t.Fatalf("list migrations: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var items []migrationListItem
+	if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
+		t.Fatalf("decode migrations: %v", err)
+	}
+	if len(items) != 0 {
+		t.Errorf("len(items) = %d, want 0", len(items))
+	}
+}
+
+func TestListMigrations_WithReports(t *testing.T) {
+	store := messagestore.NewInMemoryStore()
+	srv := New(store, newTestAlertStore())
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	tmpDir := t.TempDir()
+	chDir := filepath.Join(tmpDir, "test-channel")
+	if err := os.MkdirAll(chDir, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	reportYAML := `channelName: test-channel
+originalName: Test Channel
+status: auto-converted
+autoConverted:
+  - element: source_connector
+    description: Source mapped to mllp
+needsRewrite: []
+unsupported: []
+warnings: []
+`
+	if err := os.WriteFile(filepath.Join(chDir, "migration-report.yaml"), []byte(reportYAML), 0644); err != nil {
+		t.Fatalf("write report: %v", err)
+	}
+
+	srv.SetMigrationsDir(tmpDir)
+
+	resp, err := http.Get(ts.URL + "/api/v1/migrations")
+	if err != nil {
+		t.Fatalf("list migrations: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var items []migrationListItem
+	if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
+		t.Fatalf("decode migrations: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("len(items) = %d, want 1", len(items))
+	}
+	if items[0].ID != "test-channel" {
+		t.Errorf("id = %q, want %q", items[0].ID, "test-channel")
+	}
+	if items[0].Status != "auto-converted" {
+		t.Errorf("status = %q, want %q", items[0].Status, "auto-converted")
+	}
+}
+
+func TestGetMigration(t *testing.T) {
+	store := messagestore.NewInMemoryStore()
+	srv := New(store, newTestAlertStore())
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	tmpDir := t.TempDir()
+	chDir := filepath.Join(tmpDir, "script-channel")
+	if err := os.MkdirAll(chDir, 0755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	reportYAML := `channelName: script-channel
+originalName: Script Channel
+status: needs-rewrite
+autoConverted:
+  - element: source_connector
+    description: Source mapped to mllp
+needsRewrite:
+  - severity: medium
+    description: Rewrite JS transformer
+    category: transformer
+unsupported: []
+warnings:
+  - channel name sanitized
+`
+	if err := os.WriteFile(filepath.Join(chDir, "migration-report.yaml"), []byte(reportYAML), 0644); err != nil {
+		t.Fatalf("write report: %v", err)
+	}
+
+	srv.SetMigrationsDir(tmpDir)
+
+	resp, err := http.Get(ts.URL + "/api/v1/migrations/script-channel")
+	if err != nil {
+		t.Fatalf("get migration: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var report migrationReportResponse
+	if err := json.NewDecoder(resp.Body).Decode(&report); err != nil {
+		t.Fatalf("decode migration report: %v", err)
+	}
+	if report.ChannelName != "script-channel" {
+		t.Errorf("channel_name = %q, want %q", report.ChannelName, "script-channel")
+	}
+	if report.Status != "needs-rewrite" {
+		t.Errorf("status = %q, want %q", report.Status, "needs-rewrite")
+	}
+	if len(report.NeedsRewrite) != 1 {
+		t.Errorf("len(needsRewrite) = %d, want 1", len(report.NeedsRewrite))
+	}
+	if len(report.Warnings) != 1 {
+		t.Errorf("len(warnings) = %d, want 1", len(report.Warnings))
+	}
+}
+
+func TestGetMigration_NotFound(t *testing.T) {
+	store := messagestore.NewInMemoryStore()
+	srv := New(store, newTestAlertStore())
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	tmpDir := t.TempDir()
+	srv.SetMigrationsDir(tmpDir)
+
+	resp, err := http.Get(ts.URL + "/api/v1/migrations/nonexistent")
+	if err != nil {
+		t.Fatalf("get migration: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusNotFound)
 	}
 }
 

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<channel version="3.12.0">
+  <id>ch-003</id>
+  <name>Unsupported Source</name>
+  <description>Channel with unsupported connector and E4X</description>
+  <enabled>true</enabled>
+  <revision>1</revision>
+  <sourceConnector>
+    <name>Web Service Source</name>
+    <enabled>true</enabled>
+    <properties class="com.mirth.connect.connectors.ws.WebServiceListenerProperties">
+      <listenerConnectorProperties>
+        <host>0.0.0.0</host>
+        <port>9000</port>
+      </listenerConnectorProperties>
+    </properties>
+    <transformer>
+      <steps>
+        <step>
+          <sequenceNumber>0</sequenceNumber>
+          <name>E4X Transform</name>
+          <script>var xml = new XML('&lt;root/&gt;'); var nodes = xml..*;</script>
+          <type>JavaScript</type>
+        </step>
+      </steps>
+    </transformer>
+    <filter>
+      <rules/>
+    </filter>
+  </sourceConnector>
+  <destinationConnectors>
+    <connector>
+      <name>HTTP Destination</name>
+      <enabled>true</enabled>
+      <properties class="com.mirth.connect.connectors.http.HttpDispatcherProperties">
+        <host>example.com</host>
+        <port>80</port>
+        <method>GET</method>
+      </properties>
+      <transformer>
+        <steps/>
+      </transformer>
+      <filter>
+        <rules/>
+      </filter>
+    </connector>
+  </destinationConnectors>
+  <properties/>
+</channel>
