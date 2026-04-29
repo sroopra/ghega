@@ -32,7 +32,7 @@ func runMigrateMirth(args []string) error {
 	}
 
 	if fs.NArg() == 0 {
-		return fmt.Errorf("usage: ghega migrate mirth <export-dir> --out <output-dir>")
+		return fmt.Errorf("usage: ghega migrate mirth <export-dir|file.xml> --out <output-dir>")
 	}
 
 	exportDir := fs.Arg(0)
