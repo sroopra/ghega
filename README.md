@@ -33,6 +33,23 @@ Start the Ghega HTTP server:
 
 The server listens on port `8080` by default. Override it with the `--port` flag or the `GHEGA_PORT` environment variable.
 
+### Authentication
+
+Ghega uses OIDC with session cookies in a BFF pattern. The Go backend handles all token exchange, and the SPA never stores tokens in localStorage. The UI handles login and logout automatically.
+
+Configure OIDC with the following environment variables:
+
+| Variable | Description |
+|----------|-------------|
+| `GHEGA_AUTH_ENABLED` | Set to `true` to enable authentication. Defaults to `false` (dev mode). |
+| `GHEGA_OIDC_ISSUER` | OIDC provider issuer URL (required when auth is enabled). |
+| `GHEGA_OIDC_CLIENT_ID` | OIDC client ID (required when auth is enabled). |
+| `GHEGA_OIDC_CLIENT_SECRET` | OIDC client secret (required when auth is enabled). |
+| `GHEGA_OIDC_REDIRECT_URL` | OIDC redirect URL. Defaults to `http://localhost:8080/auth/callback`. |
+| `GHEGA_SESSION_SECRET` | Secret used to sign session cookies (required when auth is enabled). |
+
+When `GHEGA_AUTH_ENABLED=false`, the server runs in dev mode and injects a fake developer user so the Console can be used without an identity provider.
+
 ### Migration from Mirth
 
 Import Mirth Connect channel exports:

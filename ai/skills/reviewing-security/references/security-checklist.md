@@ -7,7 +7,7 @@ This checklist maps Ghega channel security controls to common compliance framewo
 | ASVS ID | Requirement | Ghega Control | Verification |
 |---------|-------------|---------------|--------------|
 | V1.1.1 | Secure software development lifecycle | Channel YAML is version-controlled and reviewed | Verify pull request reviews include security checks |
-| V1.2.1 | Authentication mechanisms | API and CLI use authenticated sessions | Confirm token-based auth is required for all deploy operations |
+| V1.2.1 | Authentication mechanisms | API and CLI use authenticated sessions | ✅ OIDC session cookie auth implemented (ADR-010) |
 | V1.4.1 | Access control design | RBAC restricts channel create, deploy, and replay | Review role bindings for least privilege |
 | V2.10.1 | Service authentication | mTLS or token auth for internal services | Verify connector configs require TLS |
 | V4.1.1 | HTTP request security | HTTP connectors use TLS and validate certificates | Check `tls.enabled` and `tls.verify` settings |
@@ -24,9 +24,9 @@ This checklist maps Ghega channel security controls to common compliance framewo
 | Access Control | 164.312(a) | RBAC and authentication for all channel operations | Verify user and service account permissions |
 | Audit Controls | 164.312(b) | Audit logs record all channel deploy, replay, and access events | Review audit log coverage and integrity |
 | Integrity | 164.312(c) | Channel configurations are versioned and signed | Verify commit signing and immutable history |
-| Person or Entity Authentication | 164.312(d) | API and CLI require valid credentials | Test that unauthenticated requests are rejected |
+| Person or Entity Authentication | 164.312(d) | API and CLI require valid credentials | ✅ OIDC session cookie auth implemented (ADR-010) |
 | Transmission Security | 164.312(e) | TLS for data in transit | Validate certificate chains and cipher suites |
-| Automatic Logoff | 164.312(a)(2)(iii) | Sessions expire after inactivity | Confirm session timeout configuration |
+| Automatic Logoff | 164.312(a)(2)(iii) | Sessions expire after inactivity | ✅ Session cookie lifecycle managed server-side (ADR-010) |
 | Encryption and Decryption | 164.312(a)(2)(iv) | Payload encrypted at rest and in transit | Verify storage encryption and TLS settings |
 
 ## GDPR Article 32 Mapping
