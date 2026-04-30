@@ -44,6 +44,28 @@ func createSessionCookie(t *testing.T, mgr *session.Manager) *http.Cookie {
 	return cookies[0]
 }
 
+func getCSRFTokens(t *testing.T, ts *httptest.Server) (*http.Cookie, string) {
+	t.Helper()
+	resp, err := http.Get(ts.URL + "/api/v1/channels")
+	if err != nil {
+		t.Fatalf("get csrf tokens: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var csrfCookie *http.Cookie
+	for _, c := range resp.Cookies() {
+		if c.Name == csrfCookieName {
+			csrfCookie = c
+			break
+		}
+	}
+	if csrfCookie == nil {
+		t.Fatal("missing csrf cookie")
+	}
+
+	return csrfCookie, resp.Header.Get(csrfHeaderName)
+}
+
 func TestHealthz(t *testing.T) {
 	store := messagestore.NewInMemoryStore()
 	srv := New(store, newTestAlertStore())
@@ -627,7 +649,14 @@ func TestRedeliver_Returns501(t *testing.T) {
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
-	resp, err := http.Post(ts.URL+"/api/v1/messages/msg-001/redeliver", "application/json", nil)
+	cookie, token := getCSRFTokens(t, ts)
+
+	req, _ := http.NewRequest("POST", ts.URL+"/api/v1/messages/msg-001/redeliver", nil)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(csrfHeaderName, token)
+	req.AddCookie(cookie)
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("redeliver request: %v", err)
 	}
@@ -644,7 +673,14 @@ func TestReplay_Returns501(t *testing.T) {
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
-	resp, err := http.Post(ts.URL+"/api/v1/messages/msg-001/replay", "application/json", nil)
+	cookie, token := getCSRFTokens(t, ts)
+
+	req, _ := http.NewRequest("POST", ts.URL+"/api/v1/messages/msg-001/replay", nil)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(csrfHeaderName, token)
+	req.AddCookie(cookie)
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("replay request: %v", err)
 	}
