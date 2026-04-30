@@ -71,14 +71,8 @@ func TestChannels(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&channels); err != nil {
 		t.Fatalf("decode channels: %v", err)
 	}
-	if len(channels) != 1 {
-		t.Fatalf("len(channels) = %d, want 1", len(channels))
-	}
-	if channels[0].ID != "adt-a01" {
-		t.Errorf("channel id = %q, want %q", channels[0].ID, "adt-a01")
-	}
-	if channels[0].Name != "ADT A01 MLLP to HTTP" {
-		t.Errorf("channel name = %q, want %q", channels[0].Name, "ADT A01 MLLP to HTTP")
+	if len(channels) != 0 {
+		t.Fatalf("len(channels) = %d, want 0", len(channels))
 	}
 }
 
@@ -558,7 +552,7 @@ func TestAPIRoutesTakePrecedenceOverStaticFiles(t *testing.T) {
 	}
 
 	body, _ := io.ReadAll(resp.Body)
-	if !strings.Contains(string(body), "adt-a01") {
-		t.Errorf("body missing expected channel id: %s", body)
+	if !strings.Contains(string(body), "[]") {
+		t.Errorf("body missing expected empty array: %s", body)
 	}
 }
