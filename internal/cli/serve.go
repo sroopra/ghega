@@ -16,6 +16,7 @@ import (
 	"github.com/sroopra/ghega/internal/config"
 	"github.com/sroopra/ghega/internal/engine"
 	"github.com/sroopra/ghega/internal/server"
+	"github.com/sroopra/ghega/internal/session"
 	"github.com/sroopra/ghega/pkg/messagestore"
 	"github.com/sroopra/ghega/pkg/mllp"
 )
@@ -42,8 +43,27 @@ func runServe(args []string) error {
 	}
 
 	// Start HTTP API server.
+	authConfig := config.AuthConfigFromEnv()
+	sessionMgr := session.NewManager(session.NewMemoryStore(), authConfig.SessionSecret)
+
+	var oidcProvider *server.OIDCProvider
+	if authConfig.Enabled {
+		if err := authConfig.Validate(); err != nil {
+			return fmt.Errorf("auth config: %w", err)
+		}
+		var err error
+		oidcProvider, err = server.NewOIDCProvider(context.Background(), authConfig, sessionMgr)
+		if err != nil {
+			slog.Warn("failed to initialize OIDC provider; auth endpoints will be unavailable", slog.String("error", err.Error()))
+		}
+	}
+
 	alertStore := alerts.NewInMemoryAlertStore()
-	srv := server.New(store, alertStore)
+	srv := server.New(store, alertStore,
+		server.WithAuthConfig(authConfig),
+		server.WithSessionManager(sessionMgr),
+		server.WithOIDCProvider(oidcProvider),
+	)
 	srv.SetMigrationsDir(*migrationsDir)
 	httpSrv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", *port),
