@@ -15,30 +15,6 @@ function SeverityBadge({ severity }: { severity: string }) {
   return <span className={`status-badge ${cls}`}>{severity}</span>
 }
 
-const MOCK_ALERTS: Alert[] = [
-  {
-    id: 'alert-001',
-    channel_id: 'demo-channel',
-    severity: 'critical',
-    message: 'Channel connection lost',
-    created_at: '2026-04-26T10:00:00Z',
-  },
-  {
-    id: 'alert-002',
-    channel_id: 'inbound-orders',
-    severity: 'warning',
-    message: 'Message processing delayed',
-    created_at: '2026-04-26T10:05:00Z',
-  },
-  {
-    id: 'alert-003',
-    channel_id: 'notifications',
-    severity: 'info',
-    message: 'System maintenance scheduled',
-    created_at: '2026-04-26T10:10:00Z',
-  },
-]
-
 export default function AlertsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [loading, setLoading] = useState(true)
@@ -50,15 +26,15 @@ export default function AlertsPage() {
     listAlerts()
       .then((data) => {
         if (!cancelled) {
-          setAlerts(data.length > 0 ? data : MOCK_ALERTS)
+          setAlerts(data)
           setError(null)
         }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          console.warn('API unavailable, using mock data:', err)
-          setAlerts(MOCK_ALERTS)
-          setError(null)
+          const msg = err instanceof Error ? err.message : String(err)
+          setError(msg)
+          setAlerts([])
         }
       })
       .finally(() => {
