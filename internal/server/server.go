@@ -12,6 +12,8 @@ import (
 
 	"github.com/sroopra/ghega"
 	"github.com/sroopra/ghega/internal/alerts"
+	"github.com/sroopra/ghega/internal/config"
+	"github.com/sroopra/ghega/internal/session"
 	"github.com/sroopra/ghega/pkg/messagestore"
 	"github.com/sroopra/ghega/pkg/migration"
 	"github.com/sroopra/ghega/pkg/payloadref"
@@ -23,11 +25,36 @@ type Server struct {
 	store         messagestore.Store
 	alertStore    alerts.AlertStore
 	migrationsDir string
+	authConfig    config.AuthConfig
+	sessionMgr    *session.Manager
+	oidcProvider  *OIDCProvider
+}
+
+// ServerOption configures a Server.
+type ServerOption func(*Server)
+
+// WithAuthConfig sets the authentication configuration.
+func WithAuthConfig(cfg config.AuthConfig) ServerOption {
+	return func(s *Server) { s.authConfig = cfg }
+}
+
+// WithSessionManager sets the session manager.
+func WithSessionManager(mgr *session.Manager) ServerOption {
+	return func(s *Server) { s.sessionMgr = mgr }
+}
+
+// WithOIDCProvider sets the OIDC provider.
+func WithOIDCProvider(op *OIDCProvider) ServerOption {
+	return func(s *Server) { s.oidcProvider = op }
 }
 
 // New creates a new Server with the given store and alertStore.
-func New(store messagestore.Store, alertStore alerts.AlertStore) *Server {
-	return &Server{store: store, alertStore: alertStore}
+func New(store messagestore.Store, alertStore alerts.AlertStore, opts ...ServerOption) *Server {
+	s := &Server{store: store, alertStore: alertStore}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
 }
 
 // SetMigrationsDir configures the directory where migration reports are read from.
@@ -112,11 +139,19 @@ func (s *Server) Handler() http.Handler {
 	apiMux.HandleFunc("GET /alerts", s.handleListAlerts)
 	apiMux.HandleFunc("GET /migrations", s.handleListMigrations)
 	apiMux.HandleFunc("GET /migrations/{id}", s.handleGetMigration)
+	apiMux.HandleFunc("GET /me", s.handleMe)
 
-	wrapped := CORSMiddleware(AuthMiddleware(apiMux))
+	wrapped := s.CORSMiddleware(s.AuthMiddleware(apiMux))
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", wrapped))
+
+	if s.oidcProvider != nil {
+		mux.HandleFunc("GET /auth/login", s.oidcProvider.HandleLogin)
+		mux.HandleFunc("GET /auth/callback", s.oidcProvider.HandleCallback)
+		mux.HandleFunc("POST /auth/logout", s.oidcProvider.HandleLogout)
+	}
+
 	mux.HandleFunc("/healthz", s.handleHealthz)
 
 	sub, err := fs.Sub(ghega.UIFS, "ui/dist")
