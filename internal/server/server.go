@@ -141,7 +141,7 @@ func (s *Server) Handler() http.Handler {
 	apiMux.HandleFunc("GET /migrations/{id}", s.handleGetMigration)
 	apiMux.HandleFunc("GET /me", s.handleMe)
 
-	wrapped := s.CORSMiddleware(s.AuthMiddleware(apiMux))
+	wrapped := s.CORSMiddleware(s.CSRFMiddleware(s.AuthMiddleware(apiMux)))
 
 	mux := http.NewServeMux()
 	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", wrapped))
