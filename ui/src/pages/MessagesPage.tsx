@@ -15,36 +15,6 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`status-badge ${cls}`}>{status}</span>
 }
 
-const MOCK_MESSAGES: MessageMetadata[] = [
-  {
-    id: 'msg-001',
-    channel_id: 'demo-channel',
-    message_id: 'MSG-2026-001',
-    status: 'received',
-    received_at: '2026-04-26T10:00:00Z',
-    storage_id: 'store-001',
-    location: 'memory://demo-channel/001',
-  },
-  {
-    id: 'msg-002',
-    channel_id: 'demo-channel',
-    message_id: 'MSG-2026-002',
-    status: 'processed',
-    received_at: '2026-04-26T10:05:00Z',
-    storage_id: 'store-002',
-    location: 'memory://demo-channel/002',
-  },
-  {
-    id: 'msg-003',
-    channel_id: 'demo-channel',
-    message_id: 'MSG-2026-003',
-    status: 'error',
-    received_at: '2026-04-26T10:10:00Z',
-    storage_id: 'store-003',
-    location: 'memory://demo-channel/003',
-  },
-]
-
 export default function MessagesPage() {
   const [messages, setMessages] = useState<MessageMetadata[]>([])
   const [loading, setLoading] = useState(true)
@@ -56,15 +26,15 @@ export default function MessagesPage() {
     listMessages()
       .then((data) => {
         if (!cancelled) {
-          setMessages(data.length > 0 ? data : MOCK_MESSAGES)
+          setMessages(data)
           setError(null)
         }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
-          console.warn('API unavailable, using mock data:', err)
-          setMessages(MOCK_MESSAGES)
-          setError(null)
+          const msg = err instanceof Error ? err.message : String(err)
+          setError(msg)
+          setMessages([])
         }
       })
       .finally(() => {
