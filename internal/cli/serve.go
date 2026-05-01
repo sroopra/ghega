@@ -54,7 +54,7 @@ func runServe(args []string) error {
 		var err error
 		oidcProvider, err = server.NewOIDCProvider(context.Background(), authConfig, sessionMgr)
 		if err != nil {
-			slog.Warn("failed to initialize OIDC provider; auth endpoints will be unavailable", slog.String("error", err.Error()))
+			return fmt.Errorf("oidc provider init: %w", err)
 		}
 	}
 
