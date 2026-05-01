@@ -133,3 +133,17 @@ func (s *InMemoryStore) UpdateStatus(_ context.Context, messageID, status string
 	env.Status = status
 	return nil
 }
+
+// Delete removes a message and its payload by message ID.
+func (s *InMemoryStore) Delete(_ context.Context, messageID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	env, ok := s.metadata[messageID]
+	if !ok {
+		return &ErrNotFound{MessageID: messageID}
+	}
+	delete(s.metadata, messageID)
+	delete(s.payloads, env.Ref.StorageID)
+	return nil
+}
