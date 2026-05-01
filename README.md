@@ -50,6 +50,30 @@ Configure OIDC with the following environment variables:
 
 When `GHEGA_AUTH_ENABLED=false`, the server runs in dev mode and injects a fake developer user so the Console can be used without an identity provider.
 
+### FHIR Support
+
+Ghega supports FHIR R4 as a source, destination, and mapping target. Channels can declare `source.type: fhir` to accept FHIR REST interactions, or `destination.type: fhir` to send FHIR JSON to external servers.
+
+Generate an HL7v2-to-FHIR channel scaffold:
+
+```bash
+ghega generate channel hl7v2-to-fhir --name adt-to-fhir --out ./channels/adt-to-fhir
+```
+
+The mapping engine converts HL7v2 segments to FHIR resources:
+
+| HL7v2 Segment | FHIR Resource |
+|---------------|---------------|
+| PID | Patient |
+| PV1 | Encounter |
+| OBX | Observation |
+| OBR | DiagnosticReport |
+| MSH | MessageHeader |
+
+Supported Bundle types: `batch`, `transaction`, `searchset`, `history`, `collection`.
+
+See `docs/adr/011-fhir-support.md` for architecture details.
+
 ### Migration from Mirth
 
 Import Mirth Connect channel exports:

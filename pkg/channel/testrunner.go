@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/sroopra/ghega/pkg/fhir"
 	"github.com/sroopra/ghega/pkg/mapping"
 )
 
@@ -143,4 +144,58 @@ func jsonDiff(path string, actual, expected any) []string {
 	}
 
 	return diffs
+}
+
+// RunFHIRTest executes a single TestFixture through the FHIR mapping engine
+// and compares the resulting Bundle JSON against ExpectedJSON.
+func RunFHIRTest(fixture TestFixture) (*TestResult, error) {
+	eng := mapping.NewFHIREngine()
+
+	start := time.Now()
+	bundle, err := eng.Apply([]byte(fixture.Input))
+	duration := time.Since(start)
+
+	result := &TestResult{
+		Name:     fixture.Name,
+		Passed:   true,
+		Duration: duration,
+		Actual:   make(map[string]string),
+		Errors:   []string{},
+		Warnings: []string{},
+	}
+
+	if err != nil {
+		result.Passed = false
+		result.Errors = append(result.Errors, fmt.Sprintf("fhir mapping engine error: %v", err))
+		return result, nil
+	}
+
+	bundleJSON, marshalErr := fhir.BundleToJSON(bundle)
+	if marshalErr != nil {
+		result.Passed = false
+		result.Errors = append(result.Errors, fmt.Sprintf("marshal bundle: %v", marshalErr))
+		return result, nil
+	}
+	result.Actual["bundle_json"] = string(bundleJSON)
+
+	if fixture.ExpectedJSON == "" {
+		result.Passed = false
+		result.Errors = append(result.Errors, "FHIR tests require ExpectedJSON")
+		return result, nil
+	}
+
+	var actualObject map[string]any
+	if err := json.Unmarshal(bundleJSON, &actualObject); err != nil {
+		result.Passed = false
+		result.Errors = append(result.Errors, fmt.Sprintf("unmarshal actual bundle: %v", err))
+		return result, nil
+	}
+
+	diffs := jsonDiff("", actualObject, fixture.ExpectedObject)
+	if len(diffs) > 0 {
+		result.Passed = false
+		result.Errors = append(result.Errors, diffs...)
+	}
+
+	return result, nil
 }
