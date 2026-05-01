@@ -32,7 +32,7 @@ func ValidateBundleType(b *Bundle) error {
 		return fmt.Errorf("bundle is nil")
 	}
 	switch b.Type {
-	case "document", "message", "transaction", "transaction-response", "batch", "batch-response", "history", "searchset", "collection":
+	case "batch", "transaction", "searchset", "history":
 		return nil
 	default:
 		return fmt.Errorf("invalid bundle type %q", b.Type)

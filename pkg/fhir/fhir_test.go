@@ -152,7 +152,7 @@ func TestParseBundle(t *testing.T) {
 }
 
 func TestValidateBundleType(t *testing.T) {
-	validTypes := []string{"document", "message", "transaction", "transaction-response", "batch", "batch-response", "history", "searchset", "collection"}
+	validTypes := []string{"batch", "transaction", "searchset", "history"}
 	for _, typ := range validTypes {
 		b := &Bundle{Type: typ}
 		if err := ValidateBundleType(b); err != nil {
@@ -160,7 +160,7 @@ func TestValidateBundleType(t *testing.T) {
 		}
 	}
 
-	invalidTypes := []string{"", "search-set", "invalid"}
+	invalidTypes := []string{"", "search-set", "collection", "document", "invalid"}
 	for _, typ := range invalidTypes {
 		b := &Bundle{Type: typ}
 		if err := ValidateBundleType(b); err == nil {

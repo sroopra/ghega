@@ -20,9 +20,9 @@ type Bundle struct {
 
 // BundleEntry represents an entry in a Bundle.
 type BundleEntry struct {
-	Resource json.RawMessage       `json:"resource,omitempty"`
-	Request  *BundleEntryRequest   `json:"request,omitempty"`
-	Response *BundleEntryResponse  `json:"response,omitempty"`
+	Resource json.RawMessage      `json:"resource,omitempty"`
+	Request  *BundleEntryRequest  `json:"request,omitempty"`
+	Response *BundleEntryResponse `json:"response,omitempty"`
 }
 
 // BundleEntryRequest carries the request details for a Bundle entry.
@@ -98,11 +98,11 @@ type DiagnosticReport struct {
 
 // MessageHeader is a minimal FHIR R4 MessageHeader resource.
 type MessageHeader struct {
-	ResourceType string                   `json:"resourceType,omitempty"`
-	EventCoding  *Coding                  `json:"eventCoding,omitempty"`
-	Source       *MessageHeaderSource     `json:"source,omitempty"`
-	Destination []MessageHeaderDestination `json:"destination,omitempty"`
-	Timestamp    string                   `json:"timestamp,omitempty"`
+	ResourceType string                     `json:"resourceType,omitempty"`
+	EventCoding  *Coding                    `json:"eventCoding,omitempty"`
+	Source       *MessageHeaderSource       `json:"source,omitempty"`
+	Destination  []MessageHeaderDestination `json:"destination,omitempty"`
+	Timestamp    string                     `json:"timestamp,omitempty"`
 }
 
 // MessageHeaderSource represents the source of a message.
