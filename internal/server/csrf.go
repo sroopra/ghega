@@ -7,7 +7,7 @@ import (
 	"net/http"
 )
 
-const csrfCookieName = "__Host-csrf"
+const csrfCookieName = "ghega_csrf"
 const csrfHeaderName = "X-CSRF-Token"
 
 func generateCSRFToken() string {
