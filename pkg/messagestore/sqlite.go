@@ -207,6 +207,34 @@ func (s *SQLiteStore) UpdateStatus(ctx context.Context, messageID, status string
 	return nil
 }
 
+// Delete removes a message and its payload by message ID.
+func (s *SQLiteStore) Delete(ctx context.Context, messageID string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer tx.Rollback()
+
+	var storageID string
+	err = tx.QueryRowContext(ctx, `SELECT storage_id FROM messages WHERE message_id = ?`, messageID).Scan(&storageID)
+	if err == sql.ErrNoRows {
+		return &ErrNotFound{MessageID: messageID}
+	}
+	if err != nil {
+		return fmt.Errorf("select message: %w", err)
+	}
+
+	_, err = tx.ExecContext(ctx, `DELETE FROM messages WHERE message_id = ?`, messageID)
+	if err != nil {
+		return fmt.Errorf("delete message: %w", err)
+	}
+	_, err = tx.ExecContext(ctx, `DELETE FROM payloads WHERE storage_id = ?`, storageID)
+	if err != nil {
+		return fmt.Errorf("delete payload: %w", err)
+	}
+	return tx.Commit()
+}
+
 // Close closes the underlying database connection.
 func (s *SQLiteStore) Close() error {
 	return s.db.Close()
