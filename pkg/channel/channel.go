@@ -30,10 +30,11 @@ type Destination struct {
 
 // Test defines a single test fixture for a channel.
 type Test struct {
-	Name        string            `json:"name" yaml:"name"`
-	Description string            `json:"description,omitempty" yaml:"description,omitempty"`
-	Input       string            `json:"input" yaml:"input"`
-	Expected    map[string]string `json:"expected" yaml:"expected"`
+	Name         string            `json:"name" yaml:"name"`
+	Description  string            `json:"description,omitempty" yaml:"description,omitempty"`
+	Input        string            `json:"input" yaml:"input"`
+	Expected     map[string]string `json:"expected" yaml:"expected"`
+	ExpectedJSON string            `json:"expectedJSON,omitempty" yaml:"expectedJSON,omitempty"`
 }
 
 // Policies holds governance and runtime constraints for a channel.
