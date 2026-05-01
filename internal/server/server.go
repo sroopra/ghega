@@ -149,6 +149,7 @@ func (s *Server) Handler() http.Handler {
 	if s.oidcProvider != nil {
 		mux.HandleFunc("GET /auth/login", s.oidcProvider.HandleLogin)
 		mux.HandleFunc("GET /auth/callback", s.oidcProvider.HandleCallback)
+		mux.HandleFunc("GET /auth/logout", s.oidcProvider.HandleLogout)
 		mux.HandleFunc("POST /auth/logout", s.oidcProvider.HandleLogout)
 	}
 

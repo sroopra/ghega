@@ -643,6 +643,60 @@ func TestAuthLogout_ClearsCookie(t *testing.T) {
 	}
 }
 
+func TestAuthLogout_Get_ClearsCookie(t *testing.T) {
+	store := messagestore.NewInMemoryStore()
+	alertStore := newTestAlertStore()
+	mgr := session.NewManager(session.NewMemoryStore(), "test-secret")
+	op := &OIDCProvider{
+		config: oauth2.Config{
+			ClientID:     "test-client",
+			ClientSecret: "test-secret",
+			RedirectURL:  "http://localhost:8080/auth/callback",
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  "http://localhost:9999/auth",
+				TokenURL: "http://localhost:9999/token",
+			},
+			Scopes: []string{"openid", "profile", "email"},
+		},
+		mgr: mgr,
+	}
+	cfg := config.AuthConfig{Enabled: true, SessionSecret: "test-secret"}
+	srv := New(store, alertStore, WithAuthConfig(cfg), WithSessionManager(mgr), WithOIDCProvider(op))
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	cookie := createSessionCookie(t, mgr)
+	req, _ := http.NewRequest("GET", ts.URL+"/auth/logout", nil)
+	req.AddCookie(cookie)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("logout request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusFound {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusFound)
+	}
+
+	var cleared bool
+	for _, c := range resp.Cookies() {
+		if c.Name == "ghega_session" && c.Value == "" && c.MaxAge == -1 {
+			cleared = true
+			break
+		}
+	}
+	if !cleared {
+		t.Error("expected session cookie to be cleared")
+	}
+}
+
 func TestRedeliver_Returns501(t *testing.T) {
 	store := messagestore.NewInMemoryStore()
 	srv := New(store, newTestAlertStore())
