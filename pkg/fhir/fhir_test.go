@@ -146,13 +146,13 @@ func TestParseBundle(t *testing.T) {
 	if obs.Status != "final" {
 		t.Errorf("expected status final, got %q", obs.Status)
 	}
-	if obs.ValueQuantity == nil || obs.ValueQuantity.Value != 72 {
+	if obs.ValueQuantity == nil || obs.ValueQuantity.Value == nil || *obs.ValueQuantity.Value != 72 {
 		t.Errorf("unexpected valueQuantity: %+v", obs.ValueQuantity)
 	}
 }
 
 func TestValidateBundleType(t *testing.T) {
-	validTypes := []string{"batch", "transaction", "search-set", "history"}
+	validTypes := []string{"document", "message", "transaction", "transaction-response", "batch", "batch-response", "history", "searchset", "collection"}
 	for _, typ := range validTypes {
 		b := &Bundle{Type: typ}
 		if err := ValidateBundleType(b); err != nil {
@@ -160,7 +160,7 @@ func TestValidateBundleType(t *testing.T) {
 		}
 	}
 
-	invalidTypes := []string{"", "collection", "document", "message", "invalid"}
+	invalidTypes := []string{"", "search-set", "invalid"}
 	for _, typ := range invalidTypes {
 		b := &Bundle{Type: typ}
 		if err := ValidateBundleType(b); err == nil {

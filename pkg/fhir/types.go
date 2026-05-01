@@ -101,7 +101,7 @@ type MessageHeader struct {
 	ResourceType string                   `json:"resourceType,omitempty"`
 	EventCoding  *Coding                  `json:"eventCoding,omitempty"`
 	Source       *MessageHeaderSource     `json:"source,omitempty"`
-	Destination  []MessageHeaderDestination `json:"destination,omitempty"`
+	Destination []MessageHeaderDestination `json:"destination,omitempty"`
 	Timestamp    string                   `json:"timestamp,omitempty"`
 }
 
@@ -168,10 +168,10 @@ type Coding struct {
 
 // Quantity represents a measured or measurable amount.
 type Quantity struct {
-	Value  float64 `json:"value,omitempty"`
-	Unit   string  `json:"unit,omitempty"`
-	System string  `json:"system,omitempty"`
-	Code   string  `json:"code,omitempty"`
+	Value  *float64 `json:"value,omitempty"`
+	Unit   string   `json:"unit,omitempty"`
+	System string   `json:"system,omitempty"`
+	Code   string   `json:"code,omitempty"`
 }
 
 // Reference represents a reference to another resource.
@@ -205,5 +205,5 @@ type ContactPoint struct {
 	System string `json:"system,omitempty"`
 	Value  string `json:"value,omitempty"`
 	Use    string `json:"use,omitempty"`
-	Rank   int    `json:"rank,omitempty"`
+	Rank   *int   `json:"rank,omitempty"`
 }
