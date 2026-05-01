@@ -3,6 +3,7 @@ package channel
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/sroopra/ghega/pkg/mapping"
@@ -203,5 +204,154 @@ func TestRunTest_MappingEngineError(t *testing.T) {
 	}
 	if len(result.Errors) == 0 {
 		t.Fatal("expected at least one error")
+	}
+}
+
+func TestRunTest_JSONEqual(t *testing.T) {
+	fixture := TestFixture{
+		Name:  "json-equal",
+		Input: "MSH|^~\\&|GhegaApp|GhegaFac\rPID|1||MRN12345\r",
+		ExpectedJSON: `{"patient_mrn":"MRN12345"}`,
+		ExpectedObject: map[string]any{
+			"patient_mrn": "MRN12345",
+		},
+	}
+	mappings := []mapping.Mapping{
+		{Source: "PID-3.1", Target: "patient_mrn", Transform: mapping.TransformCopy},
+	}
+
+	result, err := RunTest(fixture, mappings)
+	if err != nil {
+		t.Fatalf("RunTest: %v", err)
+	}
+	if !result.Passed {
+		t.Fatalf("expected test to pass, got errors: %v", result.Errors)
+	}
+}
+
+func TestRunTest_JSONMissingKey(t *testing.T) {
+	fixture := TestFixture{
+		Name:  "json-missing-key",
+		Input: "MSH|^~\\&|GhegaApp|GhegaFac\rPID|1||MRN12345\r",
+		ExpectedJSON: `{"patient_mrn":"MRN12345","missing":"x"}`,
+		ExpectedObject: map[string]any{
+			"patient_mrn": "MRN12345",
+			"missing":     "x",
+		},
+	}
+	mappings := []mapping.Mapping{
+		{Source: "PID-3.1", Target: "patient_mrn", Transform: mapping.TransformCopy},
+	}
+
+	result, err := RunTest(fixture, mappings)
+	if err != nil {
+		t.Fatalf("RunTest: %v", err)
+	}
+	if result.Passed {
+		t.Fatal("expected test to fail")
+	}
+	found := false
+	for _, e := range result.Errors {
+		if strings.Contains(e, "missing: expected \"x\", got missing key") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected missing key error, got: %v", result.Errors)
+	}
+}
+
+func TestRunTest_JSONMissingNestedKey(t *testing.T) {
+	fixture := TestFixture{
+		Name:  "json-missing-nested-key",
+		Input: "MSH|^~\\&|GhegaApp|GhegaFac\rPID|1||MRN12345\r",
+		ExpectedJSON: `{"patient":{"name":"WRONG"}}`,
+		ExpectedObject: map[string]any{
+			"patient": map[string]any{
+				"name": "WRONG",
+			},
+		},
+	}
+	mappings := []mapping.Mapping{
+		{Source: "PID-3.1", Target: "patient_mrn", Transform: mapping.TransformCopy},
+	}
+
+	result, err := RunTest(fixture, mappings)
+	if err != nil {
+		t.Fatalf("RunTest: %v", err)
+	}
+	if result.Passed {
+		t.Fatal("expected test to fail")
+	}
+	found := false
+	for _, e := range result.Errors {
+		if strings.Contains(e, "patient: expected map[name:WRONG], got missing key") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected missing nested key error, got: %v", result.Errors)
+	}
+}
+
+func TestDeepCompare_NestedDiff(t *testing.T) {
+	actual := map[string]any{
+		"patient": map[string]any{
+			"name": "TESTPATIENT",
+			"age":  30,
+		},
+	}
+	expected := map[string]any{
+		"patient": map[string]any{
+			"name": "WRONG",
+			"age":  30,
+		},
+	}
+
+	errs := deepCompare("", actual, expected)
+	if len(errs) == 0 {
+		t.Fatal("expected errors, got none")
+	}
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e, `patient.name: expected "WRONG", got "TESTPATIENT"`) {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected nested diff error, got: %v", errs)
+	}
+}
+
+func TestRunTest_JSONExtraKey(t *testing.T) {
+	fixture := TestFixture{
+		Name:  "json-extra-key",
+		Input: "MSH|^~\\&|GhegaApp|GhegaFac\rPID|1||MRN12345\r",
+		ExpectedJSON: `{}`,
+		ExpectedObject: map[string]any{},
+	}
+	mappings := []mapping.Mapping{
+		{Source: "PID-3.1", Target: "patient_mrn", Transform: mapping.TransformCopy},
+	}
+
+	result, err := RunTest(fixture, mappings)
+	if err != nil {
+		t.Fatalf("RunTest: %v", err)
+	}
+	if result.Passed {
+		t.Fatal("expected test to fail")
+	}
+	found := false
+	for _, e := range result.Errors {
+		if strings.Contains(e, "patient_mrn: unexpected extra key") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected extra key error, got: %v", result.Errors)
 	}
 }

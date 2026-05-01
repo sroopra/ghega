@@ -207,3 +207,127 @@ func TestGenerateMLLPToHTTP_MinimalHL7_HasCaretSeparatedMessageType(t *testing.T
 		t.Errorf("minimal.hl7 does not contain caret-separated message type ADT^A01")
 	}
 }
+
+func TestGenerateHL7v2ToFHIR_CreatesExpectedFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	outDir := filepath.Join(tmpDir, "generated")
+
+	err := RunChannelGenerate([]string{"hl7v2-to-fhir", "--name", "test-fhir", "--message-type", "ADT_A01", "--out", outDir})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expectedFiles := []string{
+		"channel.yaml",
+		"tests/fixture.yaml",
+		"fixtures/sample.hl7",
+		"fixtures/expected.json",
+	}
+
+	for _, rel := range expectedFiles {
+		path := filepath.Join(outDir, rel)
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			t.Errorf("expected file %s to exist", rel)
+		}
+	}
+}
+
+func TestGenerateHL7v2ToFHIR_ValidYAML(t *testing.T) {
+	tmpDir := t.TempDir()
+	outDir := filepath.Join(tmpDir, "generated")
+
+	err := RunChannelGenerate([]string{"hl7v2-to-fhir", "--name", "test-fhir", "--message-type", "ADT_A01", "--out", outDir})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	channelPath := filepath.Join(outDir, "channel.yaml")
+	data, err := os.ReadFile(channelPath)
+	if err != nil {
+		t.Fatalf("reading channel.yaml: %v", err)
+	}
+
+	ch, errs := channel.ValidateYAML(data)
+	if len(errs) > 0 {
+		for _, e := range errs {
+			t.Errorf("validation error: %s: %s", e.Field, e.Message)
+		}
+	}
+	if ch == nil {
+		t.Fatal("ValidateYAML returned nil channel")
+	}
+	if ch.Source.Type != "mllp" {
+		t.Errorf("source.type = %q, want mllp", ch.Source.Type)
+	}
+	if ch.Destination.Type != "fhir" {
+		t.Errorf("destination.type = %q, want fhir", ch.Destination.Type)
+	}
+	if len(ch.Tests) == 0 {
+		t.Error("expected tests to be non-empty")
+	}
+	if ch.Tests[0].ExpectedJSON == "" {
+		t.Error("expected first test to have expectedJson set")
+	}
+}
+
+func TestGenerateHL7v2ToFHIR_NoPHI(t *testing.T) {
+	tmpDir := t.TempDir()
+	outDir := filepath.Join(tmpDir, "generated")
+
+	err := RunChannelGenerate([]string{"hl7v2-to-fhir", "--name", "test-fhir", "--message-type", "ADT_A01", "--out", outDir})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	phiPatterns := []*regexp.Regexp{
+		regexp.MustCompile(`\b\d{3}-\d{2}-\d{4}\b`),               // SSN
+		regexp.MustCompile(`\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b`), // email
+		regexp.MustCompile(`(?i)password\s*=\s*\S+`),              // password=
+		regexp.MustCompile(`(?i)api_key\s*=\s*\S+`),               // api_key=
+		regexp.MustCompile(`(?i)secret\s*=\s*\S+`),                // secret=
+		regexp.MustCompile(`(?i)token\s*=\s*\S+`),                 // token=
+	}
+
+	err = filepath.Walk(outDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		content := string(data)
+		for _, re := range phiPatterns {
+			if re.MatchString(content) {
+				t.Errorf("potential secret/PHI pattern found in %s: %s", path, re.String())
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walking generated files: %v", err)
+	}
+}
+
+func TestGenerateHL7v2ToFHIR_MissingName(t *testing.T) {
+	err := RunChannelGenerate([]string{"hl7v2-to-fhir", "--out", "/tmp/test-out"})
+	if err == nil {
+		t.Fatal("expected error for missing --name")
+	}
+	if !strings.Contains(err.Error(), "--name is required") {
+		t.Errorf("expected error to mention --name, got: %v", err)
+	}
+}
+
+func TestGenerateHL7v2ToFHIR_MissingOut(t *testing.T) {
+	err := RunChannelGenerate([]string{"hl7v2-to-fhir", "--name", "test-fhir"})
+	if err == nil {
+		t.Fatal("expected error for missing --out")
+	}
+	if !strings.Contains(err.Error(), "--out is required") {
+		t.Errorf("expected error to mention --out, got: %v", err)
+	}
+}

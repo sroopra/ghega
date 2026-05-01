@@ -244,3 +244,14 @@ func TestValidateYAML_MultipleErrors(t *testing.T) {
 		t.Errorf("expected at least 3 errors, got %d: %v", len(errs), errs)
 	}
 }
+
+func TestValidateYAML_FHIRSourceAndDestination(t *testing.T) {
+	ch := makeValidChannel()
+	ch.Source.Type = "fhir"
+	ch.Destination.Type = "fhir"
+	data, _ := yaml.Marshal(ch)
+	_, errs := ValidateYAML(data)
+	if len(errs) > 0 {
+		t.Errorf("expected no validation errors for fhir source and destination, got: %v", errs)
+	}
+}

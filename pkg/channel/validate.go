@@ -16,8 +16,8 @@ type ValidationError struct {
 var (
 	namePattern       = regexp.MustCompile(`^[a-z0-9-]+$`)
 	hl7PathPattern    = regexp.MustCompile(`^[A-Z]{3}-\d+(\.\d+)?$`)
-	validSourceTypes  = map[string]bool{"mllp": true, "http": true, "file": true, "sftp": true, "db": true}
-	validDestTypes    = map[string]bool{"http": true, "file": true, "sftp": true, "db": true}
+	validSourceTypes  = map[string]bool{"mllp": true, "http": true, "file": true, "sftp": true, "db": true, "fhir": true}
+	validDestTypes    = map[string]bool{"http": true, "file": true, "sftp": true, "db": true, "fhir": true}
 )
 
 // Validate checks a Channel for structural and semantic correctness.
@@ -51,13 +51,13 @@ func validateChannel(ch *Channel) []ValidationError {
 	if ch.Source.Type == "" {
 		errs = append(errs, ValidationError{Field: "source.type", Message: "source.type is required"})
 	} else if !validSourceTypes[ch.Source.Type] {
-		errs = append(errs, ValidationError{Field: "source.type", Message: fmt.Sprintf("source.type must be one of: mllp, http, file, sftp, db (got %q)", ch.Source.Type)})
+		errs = append(errs, ValidationError{Field: "source.type", Message: fmt.Sprintf("source.type must be one of: mllp, http, file, sftp, db, fhir (got %q)", ch.Source.Type)})
 	}
 
 	if ch.Destination.Type == "" {
 		errs = append(errs, ValidationError{Field: "destination.type", Message: "destination.type is required"})
 	} else if !validDestTypes[ch.Destination.Type] {
-		errs = append(errs, ValidationError{Field: "destination.type", Message: fmt.Sprintf("destination.type must be one of: http, file, sftp, db (got %q)", ch.Destination.Type)})
+		errs = append(errs, ValidationError{Field: "destination.type", Message: fmt.Sprintf("destination.type must be one of: http, file, sftp, db, fhir (got %q)", ch.Destination.Type)})
 	}
 
 	if len(ch.Mappings) == 0 {
