@@ -207,3 +207,65 @@ func TestGenerateMLLPToHTTP_MinimalHL7_HasCaretSeparatedMessageType(t *testing.T
 		t.Errorf("minimal.hl7 does not contain caret-separated message type ADT^A01")
 	}
 }
+
+func TestGenerateHL7v2ToFHIR_CreatesExpectedFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+	outDir := filepath.Join(tmpDir, "generated")
+
+	err := RunChannelGenerate([]string{"hl7v2-to-fhir", "--name", "test-fhir", "--message-type", "ADT_A01", "--out", outDir})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	expectedFiles := []string{
+		"channel.yaml",
+		"tests/fixture.yaml",
+		"fixtures/sample.hl7",
+		"fixtures/expected.json",
+	}
+
+	for _, rel := range expectedFiles {
+		path := filepath.Join(outDir, rel)
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			t.Errorf("expected file %s to exist", rel)
+		}
+	}
+}
+
+func TestGenerateHL7v2ToFHIR_ValidYAML(t *testing.T) {
+	tmpDir := t.TempDir()
+	outDir := filepath.Join(tmpDir, "generated")
+
+	err := RunChannelGenerate([]string{"hl7v2-to-fhir", "--name", "test-fhir", "--message-type", "ADT_A01", "--out", outDir})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	channelPath := filepath.Join(outDir, "channel.yaml")
+	data, err := os.ReadFile(channelPath)
+	if err != nil {
+		t.Fatalf("reading channel.yaml: %v", err)
+	}
+
+	ch, errs := channel.ValidateYAML(data)
+	if len(errs) > 0 {
+		for _, e := range errs {
+			t.Errorf("validation error: %s: %s", e.Field, e.Message)
+		}
+	}
+	if ch == nil {
+		t.Fatal("ValidateYAML returned nil channel")
+	}
+	if ch.Source.Type != "mllp" {
+		t.Errorf("source.type = %q, want mllp", ch.Source.Type)
+	}
+	if ch.Destination.Type != "fhir" {
+		t.Errorf("destination.type = %q, want fhir", ch.Destination.Type)
+	}
+	if len(ch.Tests) == 0 {
+		t.Error("expected tests to be non-empty")
+	}
+	if len(ch.Tests) > 0 && ch.Tests[0].ExpectedJSON != "fixtures/expected.json" {
+		t.Errorf("tests[0].expectedJSON = %q, want fixtures/expected.json", ch.Tests[0].ExpectedJSON)
+	}
+}
