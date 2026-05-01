@@ -1,4 +1,5 @@
 import { Routes, Route, NavLink } from 'react-router-dom'
+import { useAuth } from './context/AuthContext.tsx'
 import WelcomePage from './pages/WelcomePage.tsx'
 import MessagesPage from './pages/MessagesPage.tsx'
 import ChannelsPage from './pages/ChannelsPage.tsx'
@@ -6,9 +7,12 @@ import OperationsPage from './pages/OperationsPage.tsx'
 import MigrationsPage from './pages/MigrationsPage.tsx'
 import SettingsPage from './pages/SettingsPage.tsx'
 import AlertsPage from './pages/AlertsPage.tsx'
+import LoginPage from './pages/LoginPage.tsx'
 import './App.css'
 
 function App() {
+  const { user, loading, login, logout } = useAuth()
+
   return (
     <div className="app">
       <header className="app-header">
@@ -25,6 +29,22 @@ function App() {
           <NavLink to="/migrations">Migrations</NavLink>
           <NavLink to="/settings">Settings</NavLink>
         </nav>
+        <div className="auth-controls">
+          {loading ? (
+            <span className="auth-loading">Loading…</span>
+          ) : user ? (
+            <>
+              <span className="auth-user">{user.name || user.email}</span>
+              <button className="auth-button" onClick={logout}>
+                Logout
+              </button>
+            </>
+          ) : (
+            <button className="auth-button" onClick={login}>
+              Login
+            </button>
+          )}
+        </div>
       </header>
       <main className="app-main">
         <Routes>
@@ -35,6 +55,7 @@ function App() {
           <Route path="/operations" element={<OperationsPage />} />
           <Route path="/migrations" element={<MigrationsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/login" element={<LoginPage />} />
         </Routes>
       </main>
       <footer className="app-footer">

@@ -13,8 +13,11 @@ import (
 	"time"
 
 	"github.com/sroopra/ghega/internal/alerts"
+	"github.com/sroopra/ghega/internal/config"
+	"github.com/sroopra/ghega/internal/session"
 	"github.com/sroopra/ghega/pkg/messagestore"
 	"github.com/sroopra/ghega/pkg/payloadref"
+	"golang.org/x/oauth2"
 )
 
 func newTestAlertStore() alerts.AlertStore {
@@ -27,6 +30,40 @@ func mustSaveMessage(t *testing.T, store messagestore.Store, env *payloadref.Env
 	if err := store.Save(ctx, env, payload); err != nil {
 		t.Fatalf("save message: %v", err)
 	}
+}
+
+func createSessionCookie(t *testing.T, mgr *session.Manager) *http.Cookie {
+	t.Helper()
+	w := httptest.NewRecorder()
+	mgr.CreateSession(w, "alice@example.com", "Alice", []string{"admin"})
+	resp := w.Result()
+	cookies := resp.Cookies()
+	if len(cookies) != 1 {
+		t.Fatalf("expected 1 cookie, got %d", len(cookies))
+	}
+	return cookies[0]
+}
+
+func getCSRFTokens(t *testing.T, ts *httptest.Server) (*http.Cookie, string) {
+	t.Helper()
+	resp, err := http.Get(ts.URL + "/api/v1/channels")
+	if err != nil {
+		t.Fatalf("get csrf tokens: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var csrfCookie *http.Cookie
+	for _, c := range resp.Cookies() {
+		if c.Name == csrfCookieName {
+			csrfCookie = c
+			break
+		}
+	}
+	if csrfCookie == nil {
+		t.Fatal("missing csrf cookie")
+	}
+
+	return csrfCookie, resp.Header.Get(csrfHeaderName)
 }
 
 func TestHealthz(t *testing.T) {
@@ -207,21 +244,18 @@ func TestGetMessage_NotFound(t *testing.T) {
 	}
 }
 
-func TestAuthMiddleware_RejectsInvalidBearer(t *testing.T) {
+func TestAuthMiddleware_RequiresSessionWhenEnabled(t *testing.T) {
 	store := messagestore.NewInMemoryStore()
-	srv := New(store, newTestAlertStore())
+	alertStore := newTestAlertStore()
+	mgr := session.NewManager(session.NewMemoryStore(), "test-secret")
+	cfg := config.AuthConfig{Enabled: true, SessionSecret: "test-secret"}
+	srv := New(store, alertStore, WithAuthConfig(cfg), WithSessionManager(mgr))
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
-	req, err := http.NewRequest("GET", ts.URL+"/api/v1/channels", nil)
+	resp, err := http.Get(ts.URL + "/api/v1/channels")
 	if err != nil {
-		t.Fatalf("new request: %v", err)
-	}
-	req.Header.Set("Authorization", "Bearer invalid")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatalf("do request: %v", err)
+		t.Fatalf("channels request: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -230,7 +264,7 @@ func TestAuthMiddleware_RejectsInvalidBearer(t *testing.T) {
 	}
 }
 
-func TestAuthMiddleware_AllowsValidRequest(t *testing.T) {
+func TestAuthMiddleware_AllowsDevUserWhenDisabled(t *testing.T) {
 	store := messagestore.NewInMemoryStore()
 	srv := New(store, newTestAlertStore())
 	ts := httptest.NewServer(srv.Handler())
@@ -245,6 +279,368 @@ func TestAuthMiddleware_AllowsValidRequest(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
 	}
+
+	// Verify dev session is injected via /api/v1/me
+	resp2, err := http.Get(ts.URL + "/api/v1/me")
+	if err != nil {
+		t.Fatalf("me request: %v", err)
+	}
+	defer resp2.Body.Close()
+
+	if resp2.StatusCode != http.StatusOK {
+		t.Errorf("me status = %d, want %d", resp2.StatusCode, http.StatusOK)
+	}
+
+	var me map[string]any
+	if err := json.NewDecoder(resp2.Body).Decode(&me); err != nil {
+		t.Fatalf("decode me: %v", err)
+	}
+	if me["email"] != "dev@ghega.local" {
+		t.Errorf("email = %q, want %q", me["email"], "dev@ghega.local")
+	}
+	if me["name"] != "Developer" {
+		t.Errorf("name = %q, want %q", me["name"], "Developer")
+	}
+}
+
+func TestAuthLogin_Redirect(t *testing.T) {
+	store := messagestore.NewInMemoryStore()
+	alertStore := newTestAlertStore()
+	mgr := session.NewManager(session.NewMemoryStore(), "test-secret")
+	op := &OIDCProvider{
+		config: oauth2.Config{
+			ClientID:     "test-client",
+			ClientSecret: "test-secret",
+			RedirectURL:  "http://localhost:8080/auth/callback",
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  "http://localhost:9999/auth",
+				TokenURL: "http://localhost:9999/token",
+			},
+			Scopes: []string{"openid", "profile", "email"},
+		},
+		mgr: mgr,
+	}
+	cfg := config.AuthConfig{Enabled: true, SessionSecret: "test-secret"}
+	srv := New(store, alertStore, WithAuthConfig(cfg), WithSessionManager(mgr), WithOIDCProvider(op))
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	resp, err := client.Get(ts.URL + "/auth/login")
+	if err != nil {
+		t.Fatalf("login request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusFound {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusFound)
+	}
+
+	loc := resp.Header.Get("Location")
+	if loc == "" {
+		t.Fatal("missing Location header")
+	}
+	if !strings.Contains(loc, "http://localhost:9999/auth") {
+		t.Errorf("location = %q, want to contain %q", loc, "http://localhost:9999/auth")
+	}
+
+	var stateCookie *http.Cookie
+	for _, c := range resp.Cookies() {
+		if c.Name == stateCookieName {
+			stateCookie = c
+			break
+		}
+	}
+	if stateCookie == nil {
+		t.Fatal("missing state cookie")
+	}
+	if stateCookie.Value == "" {
+		t.Error("state cookie value is empty")
+	}
+}
+
+func TestAuthCallback_MissingStateCookie(t *testing.T) {
+	store := messagestore.NewInMemoryStore()
+	alertStore := newTestAlertStore()
+	mgr := session.NewManager(session.NewMemoryStore(), "test-secret")
+	op := &OIDCProvider{
+		config: oauth2.Config{
+			ClientID:     "test-client",
+			ClientSecret: "test-secret",
+			RedirectURL:  "http://localhost:8080/auth/callback",
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  "http://localhost:9999/auth",
+				TokenURL: "http://localhost:9999/token",
+			},
+			Scopes: []string{"openid", "profile", "email"},
+		},
+		mgr: mgr,
+	}
+	cfg := config.AuthConfig{Enabled: true, SessionSecret: "test-secret"}
+	srv := New(store, alertStore, WithAuthConfig(cfg), WithSessionManager(mgr), WithOIDCProvider(op))
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/auth/callback?state=xxx&code=yyy")
+	if err != nil {
+		t.Fatalf("callback request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+}
+
+func TestAuthCallback_StateMismatch(t *testing.T) {
+	store := messagestore.NewInMemoryStore()
+	alertStore := newTestAlertStore()
+	mgr := session.NewManager(session.NewMemoryStore(), "test-secret")
+	op := &OIDCProvider{
+		config: oauth2.Config{
+			ClientID:     "test-client",
+			ClientSecret: "test-secret",
+			RedirectURL:  "http://localhost:8080/auth/callback",
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  "http://localhost:9999/auth",
+				TokenURL: "http://localhost:9999/token",
+			},
+			Scopes: []string{"openid", "profile", "email"},
+		},
+		mgr: mgr,
+	}
+	cfg := config.AuthConfig{Enabled: true, SessionSecret: "test-secret"}
+	srv := New(store, alertStore, WithAuthConfig(cfg), WithSessionManager(mgr), WithOIDCProvider(op))
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	req, _ := http.NewRequest("GET", ts.URL+"/auth/callback?state=xyz&code=yyy", nil)
+	req.AddCookie(&http.Cookie{Name: stateCookieName, Value: "abc"})
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("callback request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+}
+
+func TestAuthCallback_MissingCode(t *testing.T) {
+	store := messagestore.NewInMemoryStore()
+	alertStore := newTestAlertStore()
+	mgr := session.NewManager(session.NewMemoryStore(), "test-secret")
+	op := &OIDCProvider{
+		config: oauth2.Config{
+			ClientID:     "test-client",
+			ClientSecret: "test-secret",
+			RedirectURL:  "http://localhost:8080/auth/callback",
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  "http://localhost:9999/auth",
+				TokenURL: "http://localhost:9999/token",
+			},
+			Scopes: []string{"openid", "profile", "email"},
+		},
+		mgr: mgr,
+	}
+	cfg := config.AuthConfig{Enabled: true, SessionSecret: "test-secret"}
+	srv := New(store, alertStore, WithAuthConfig(cfg), WithSessionManager(mgr), WithOIDCProvider(op))
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	req, _ := http.NewRequest("GET", ts.URL+"/auth/callback?state=validstate", nil)
+	req.AddCookie(&http.Cookie{Name: stateCookieName, Value: "validstate"})
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("callback request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+}
+
+func TestAuthCallback_ExchangeError(t *testing.T) {
+	store := messagestore.NewInMemoryStore()
+	alertStore := newTestAlertStore()
+	mgr := session.NewManager(session.NewMemoryStore(), "test-secret")
+
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid_grant"})
+	}))
+	defer tokenSrv.Close()
+
+	op := &OIDCProvider{
+		config: oauth2.Config{
+			ClientID:     "test-client",
+			ClientSecret: "test-secret",
+			RedirectURL:  "http://localhost:8080/auth/callback",
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  "http://localhost:9999/auth",
+				TokenURL: tokenSrv.URL,
+			},
+			Scopes: []string{"openid", "profile", "email"},
+		},
+		mgr: mgr,
+	}
+	cfg := config.AuthConfig{Enabled: true, SessionSecret: "test-secret"}
+	srv := New(store, alertStore, WithAuthConfig(cfg), WithSessionManager(mgr), WithOIDCProvider(op))
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	req, _ := http.NewRequest("GET", ts.URL+"/auth/callback?state=validstate&code=authcode", nil)
+	req.AddCookie(&http.Cookie{Name: stateCookieName, Value: "validstate"})
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("callback request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusUnauthorized)
+	}
+}
+
+func TestAuthMe_401(t *testing.T) {
+	store := messagestore.NewInMemoryStore()
+	alertStore := newTestAlertStore()
+	mgr := session.NewManager(session.NewMemoryStore(), "test-secret")
+	cfg := config.AuthConfig{Enabled: true, SessionSecret: "test-secret"}
+	srv := New(store, alertStore, WithAuthConfig(cfg), WithSessionManager(mgr))
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/v1/me")
+	if err != nil {
+		t.Fatalf("me request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusUnauthorized)
+	}
+}
+
+func TestAuthMe_200_WithSession(t *testing.T) {
+	store := messagestore.NewInMemoryStore()
+	alertStore := newTestAlertStore()
+	mgr := session.NewManager(session.NewMemoryStore(), "test-secret")
+	cfg := config.AuthConfig{Enabled: true, SessionSecret: "test-secret"}
+	srv := New(store, alertStore, WithAuthConfig(cfg), WithSessionManager(mgr))
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	cookie := createSessionCookie(t, mgr)
+	req, _ := http.NewRequest("GET", ts.URL+"/api/v1/me", nil)
+	req.AddCookie(cookie)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("me request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var me map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&me); err != nil {
+		t.Fatalf("decode me: %v", err)
+	}
+	if me["email"] != "alice@example.com" {
+		t.Errorf("email = %q, want %q", me["email"], "alice@example.com")
+	}
+	if me["name"] != "Alice" {
+		t.Errorf("name = %q, want %q", me["name"], "Alice")
+	}
+}
+
+func TestAuthLogout_ClearsCookie(t *testing.T) {
+	store := messagestore.NewInMemoryStore()
+	alertStore := newTestAlertStore()
+	mgr := session.NewManager(session.NewMemoryStore(), "test-secret")
+	op := &OIDCProvider{
+		config: oauth2.Config{
+			ClientID:     "test-client",
+			ClientSecret: "test-secret",
+			RedirectURL:  "http://localhost:8080/auth/callback",
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  "http://localhost:9999/auth",
+				TokenURL: "http://localhost:9999/token",
+			},
+			Scopes: []string{"openid", "profile", "email"},
+		},
+		mgr: mgr,
+	}
+	cfg := config.AuthConfig{Enabled: true, SessionSecret: "test-secret"}
+	srv := New(store, alertStore, WithAuthConfig(cfg), WithSessionManager(mgr), WithOIDCProvider(op))
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	cookie := createSessionCookie(t, mgr)
+	req, _ := http.NewRequest("POST", ts.URL+"/auth/logout", nil)
+	req.AddCookie(cookie)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatalf("logout request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusFound {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusFound)
+	}
+
+	var cleared bool
+	for _, c := range resp.Cookies() {
+		if c.Name == "ghega_session" && c.Value == "" && c.MaxAge == -1 {
+			cleared = true
+			break
+		}
+	}
+	if !cleared {
+		t.Error("expected session cookie to be cleared")
+	}
+
+	// Verify /api/v1/me returns 401 after logout using the cleared cookie
+	var clearedCookie *http.Cookie
+	for _, c := range resp.Cookies() {
+		if c.Name == "ghega_session" {
+			clearedCookie = c
+			break
+		}
+	}
+	if clearedCookie == nil {
+		t.Fatal("missing cleared session cookie in logout response")
+	}
+
+	req2, _ := http.NewRequest("GET", ts.URL+"/api/v1/me", nil)
+	req2.AddCookie(clearedCookie)
+	resp2, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		t.Fatalf("me request after logout: %v", err)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != http.StatusUnauthorized {
+		t.Errorf("me status after logout = %d, want %d", resp2.StatusCode, http.StatusUnauthorized)
+	}
 }
 
 func TestRedeliver_Returns501(t *testing.T) {
@@ -253,7 +649,14 @@ func TestRedeliver_Returns501(t *testing.T) {
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
-	resp, err := http.Post(ts.URL+"/api/v1/messages/msg-001/redeliver", "application/json", nil)
+	cookie, token := getCSRFTokens(t, ts)
+
+	req, _ := http.NewRequest("POST", ts.URL+"/api/v1/messages/msg-001/redeliver", nil)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(csrfHeaderName, token)
+	req.AddCookie(cookie)
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("redeliver request: %v", err)
 	}
@@ -270,7 +673,14 @@ func TestReplay_Returns501(t *testing.T) {
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
-	resp, err := http.Post(ts.URL+"/api/v1/messages/msg-001/replay", "application/json", nil)
+	cookie, token := getCSRFTokens(t, ts)
+
+	req, _ := http.NewRequest("POST", ts.URL+"/api/v1/messages/msg-001/replay", nil)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(csrfHeaderName, token)
+	req.AddCookie(cookie)
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("replay request: %v", err)
 	}
@@ -309,6 +719,40 @@ func TestCORSHeaders(t *testing.T) {
 	}
 	if got := resp.Header.Get("Access-Control-Allow-Headers"); !strings.Contains(got, "Authorization") {
 		t.Errorf("Access-Control-Allow-Headers missing Authorization: %q", got)
+	}
+}
+
+func TestCORSHeaders_WithAuthEnabled(t *testing.T) {
+	store := messagestore.NewInMemoryStore()
+	alertStore := newTestAlertStore()
+	mgr := session.NewManager(session.NewMemoryStore(), "test-secret")
+	cfg := config.AuthConfig{Enabled: true, SessionSecret: "test-secret"}
+	srv := New(store, alertStore, WithAuthConfig(cfg), WithSessionManager(mgr))
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	req, err := http.NewRequest("OPTIONS", ts.URL+"/api/v1/channels", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("do request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusNoContent)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != "" {
+		t.Errorf("Access-Control-Allow-Origin = %q, want empty", got)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Credentials"); got != "true" {
+		t.Errorf("Access-Control-Allow-Credentials = %q, want %q", got, "true")
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Headers"); !strings.Contains(got, "X-CSRF-Token") {
+		t.Errorf("Access-Control-Allow-Headers missing X-CSRF-Token: %q", got)
 	}
 }
 
