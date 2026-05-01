@@ -26,6 +26,8 @@ func RunChannelGenerate(args []string) error {
 	switch channelType {
 	case "mllp-to-http":
 		return runGenerateMLLPToHTTP(remaining)
+	case "hl7v2-to-fhir":
+		return runGenerateHL7v2ToFHIR(remaining)
 	default:
 		return fmt.Errorf("unknown channel type: %s", channelType)
 	}
@@ -158,4 +160,139 @@ func buildMinimalHL7(messageType string) string {
 		"EVN|A01|20240101000000|||",
 	}
 	return strings.Join(segments, "\r") + "\r"
+}
+
+func runGenerateHL7v2ToFHIR(args []string) error {
+	fs := flag.NewFlagSet("hl7v2-to-fhir", flag.ExitOnError)
+	name := fs.String("name", "", "Channel name (required)")
+	messageType := fs.String("message-type", "ADT_A01", "HL7v2 message type")
+	out := fs.String("out", "", "Output directory (required)")
+
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	if *name == "" {
+		return fmt.Errorf("--name is required")
+	}
+	if *out == "" {
+		return fmt.Errorf("--out is required")
+	}
+
+	return generateHL7v2ToFHIR(*name, *messageType, *out)
+}
+
+func generateHL7v2ToFHIR(name, messageType, outDir string) error {
+	if err := os.MkdirAll(outDir, 0755); err != nil {
+		return fmt.Errorf("creating output directory: %w", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(outDir, "tests"), 0755); err != nil {
+		return fmt.Errorf("creating tests directory: %w", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(outDir, "fixtures"), 0755); err != nil {
+		return fmt.Errorf("creating fixtures directory: %w", err)
+	}
+
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+
+	channelYAML := fmt.Sprintf(`%sname: %s
+source:
+  type: mllp
+  config:
+    host: 0.0.0.0
+    port: 2575
+destination:
+  type: fhir
+  config:
+    url: http://example.com/fhir
+    timeout: 30
+mappings:
+  - source: PID-3.1
+    target: patient.identifier.value
+  - source: PID-5.1
+    target: patient.name.family
+  - source: PID-5.2
+    target: patient.name.given
+  - source: MSH-9.1
+    target: bundle.type
+tests:
+  - name: valid_adt_a01_to_fhir
+    description: A valid ADT A01 message should produce a FHIR Bundle
+    input: fixtures/sample.hl7
+    expectedJSON: fixtures/expected.json
+policies:
+  network:
+    allowedHosts:
+      - example.com
+  payload:
+    maxSizeBytes: 1048576
+  time:
+    maxProcessingSeconds: 30
+`, fmt.Sprintf(generatedHeader, timestamp), name)
+
+	if err := os.WriteFile(filepath.Join(outDir, "channel.yaml"), []byte(channelYAML), 0644); err != nil {
+		return fmt.Errorf("writing channel.yaml: %w", err)
+	}
+
+	testFixture := fmt.Sprintf(`%s# Test fixtures for %s
+# Fixtures are loaded from the fixtures/ directory.
+`, fmt.Sprintf(generatedHeader, timestamp), name)
+
+	if err := os.WriteFile(filepath.Join(outDir, "tests", "fixture.yaml"), []byte(testFixture), 0644); err != nil {
+		return fmt.Errorf("writing tests/fixture.yaml: %w", err)
+	}
+
+	hl7Message := buildSyntheticHL7(messageType)
+	if err := os.WriteFile(filepath.Join(outDir, "fixtures", "sample.hl7"), []byte(hl7Message), 0644); err != nil {
+		return fmt.Errorf("writing fixtures/sample.hl7: %w", err)
+	}
+
+	expectedJSON := buildSyntheticFHIRBundle()
+	if err := os.WriteFile(filepath.Join(outDir, "fixtures", "expected.json"), []byte(expectedJSON), 0644); err != nil {
+		return fmt.Errorf("writing fixtures/expected.json: %w", err)
+	}
+
+	return nil
+}
+
+func buildSyntheticFHIRBundle() string {
+	// Synthetic FHIR R4 Bundle for testing purposes.
+	// No real patient identifiers or demographics are used.
+	bundle := `{
+  "resourceType": "Bundle",
+  "id": "synthetic-bundle-001",
+  "type": "transaction",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "synthetic-patient-001",
+        "identifier": [
+          {
+            "system": "http://ghega.io/synthetic",
+            "value": "SYNTHETIC_MRN_123456"
+          }
+        ],
+        "name": [
+          {
+            "family": "TESTPATIENT",
+            "given": [
+              "SYNTHETIC"
+            ]
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1980-01-01"
+      },
+      "request": {
+        "method": "PUT",
+        "url": "Patient/synthetic-patient-001"
+      }
+    }
+  ]
+}
+`
+	return bundle
 }

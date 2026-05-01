@@ -244,3 +244,17 @@ func TestValidateYAML_MultipleErrors(t *testing.T) {
 		t.Errorf("expected at least 3 errors, got %d: %v", len(errs), errs)
 	}
 }
+
+func TestValidateYAML_FHIRTypesAreValid(t *testing.T) {
+	ch := makeValidChannel()
+	ch.Source.Type = "fhir"
+	ch.Destination.Type = "fhir"
+	data, _ := yaml.Marshal(ch)
+	_, errs := ValidateYAML(data)
+	if hasErrorField(errs, "source.type") {
+		t.Errorf("expected source.type fhir to be valid, got error: %v", errs)
+	}
+	if hasErrorField(errs, "destination.type") {
+		t.Errorf("expected destination.type fhir to be valid, got error: %v", errs)
+	}
+}

@@ -9,10 +9,11 @@ import (
 
 // TestFixture is a fully-resolved test case ready to be executed.
 type TestFixture struct {
-	Name        string            `json:"name" yaml:"name"`
-	Description string            `json:"description,omitempty" yaml:"description,omitempty"`
-	Input       string            `json:"input" yaml:"input"`
-	Expected    map[string]string `json:"expected" yaml:"expected"`
+	Name         string            `json:"name" yaml:"name"`
+	Description  string            `json:"description,omitempty" yaml:"description,omitempty"`
+	Input        string            `json:"input" yaml:"input"`
+	Expected     map[string]string `json:"expected" yaml:"expected"`
+	ExpectedJSON string            `json:"expectedJSON,omitempty" yaml:"expectedJSON,omitempty"`
 }
 
 // LoadTestFixtures resolves a slice of Test definitions into TestFixtures.
@@ -49,11 +50,37 @@ func LoadTestFixtures(channelPath string, tests []Test) ([]TestFixture, error) {
 			input = string(data)
 		}
 
+		expectedJSON := tt.ExpectedJSON
+		if looksLikeFilePath(expectedJSON) {
+			p := filepath.Join(channelDir, expectedJSON)
+			absP, err := filepath.Abs(p)
+			if err != nil {
+				return nil, fmt.Errorf("load fixture %q: resolve expectedJSON path %q: %w", tt.Name, p, err)
+			}
+			absChannelDir, err := filepath.Abs(channelDir)
+			if err != nil {
+				return nil, fmt.Errorf("load fixture %q: resolve channel dir %q: %w", tt.Name, channelDir, err)
+			}
+			rel, err := filepath.Rel(absChannelDir, absP)
+			if err != nil {
+				return nil, fmt.Errorf("load fixture %q: expectedJSON path %q is outside channel directory", tt.Name, p)
+			}
+			if strings.HasPrefix(rel, "..") {
+				return nil, fmt.Errorf("load fixture %q: path traversal detected in expectedJSON %q", tt.Name, p)
+			}
+			data, err := os.ReadFile(absP)
+			if err != nil {
+				return nil, fmt.Errorf("load fixture %q: read expectedJSON %q: %w", tt.Name, p, err)
+			}
+			expectedJSON = string(data)
+		}
+
 		fixtures = append(fixtures, TestFixture{
-			Name:        tt.Name,
-			Description: tt.Description,
-			Input:       input,
-			Expected:    tt.Expected,
+			Name:         tt.Name,
+			Description:  tt.Description,
+			Input:        input,
+			Expected:     tt.Expected,
+			ExpectedJSON: expectedJSON,
 		})
 	}
 
@@ -61,5 +88,5 @@ func LoadTestFixtures(channelPath string, tests []Test) ([]TestFixture, error) {
 }
 
 func looksLikeFilePath(s string) bool {
-	return strings.Contains(s, "/") || strings.HasSuffix(s, ".hl7")
+	return strings.Contains(s, "/") || strings.HasSuffix(s, ".hl7") || strings.HasSuffix(s, ".json")
 }
