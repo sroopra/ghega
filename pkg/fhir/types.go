@@ -88,6 +88,7 @@ type Observation struct {
 // DiagnosticReport is a minimal FHIR R4 DiagnosticReport resource.
 type DiagnosticReport struct {
 	ResourceType      string           `json:"resourceType,omitempty"`
+	Identifier        []Identifier     `json:"identifier,omitempty"`
 	Status            string           `json:"status,omitempty"`
 	Code              *CodeableConcept `json:"code,omitempty"`
 	Subject           *Reference       `json:"subject,omitempty"`

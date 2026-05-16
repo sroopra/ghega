@@ -57,6 +57,9 @@ func bundleEntry(resource any) fhir.BundleEntry {
 // ---------------------------------------------------------------------------
 
 func mapPID(msg *hl7Message) *fhir.Patient {
+	if !msg.hasSegment("PID") {
+		return nil
+	}
 	patient := &fhir.Patient{ResourceType: "Patient"}
 
 	if mrn, _ := msg.getValue("PID-3.1"); mrn != "" {
@@ -131,6 +134,9 @@ func formatDate(s string) string {
 // ---------------------------------------------------------------------------
 
 func mapPV1(msg *hl7Message) *fhir.Encounter {
+	if !msg.hasSegment("PV1") {
+		return nil
+	}
 	enc := &fhir.Encounter{ResourceType: "Encounter", Status: "in-progress"}
 
 	if classCode, _ := msg.getValue("PV1-2"); classCode != "" {
@@ -182,6 +188,9 @@ func formatDateTime(s string) string {
 // ---------------------------------------------------------------------------
 
 func mapOBX(msg *hl7Message) *fhir.Observation {
+	if !msg.hasSegment("OBX") {
+		return nil
+	}
 	obs := &fhir.Observation{ResourceType: "Observation", Status: "final"}
 
 	valType, _ := msg.getValue("OBX-2")
@@ -233,6 +242,9 @@ func mapOBX(msg *hl7Message) *fhir.Observation {
 // ---------------------------------------------------------------------------
 
 func mapOBR(msg *hl7Message) *fhir.DiagnosticReport {
+	if !msg.hasSegment("OBR") {
+		return nil
+	}
 	report := &fhir.DiagnosticReport{ResourceType: "DiagnosticReport"}
 
 	if id, _ := msg.getValue("OBR-1"); id != "" {
@@ -265,6 +277,9 @@ func mapOBR(msg *hl7Message) *fhir.DiagnosticReport {
 // ---------------------------------------------------------------------------
 
 func mapMSH(msg *hl7Message) *fhir.MessageHeader {
+	if !msg.hasSegment("MSH") {
+		return nil
+	}
 	header := &fhir.MessageHeader{ResourceType: "MessageHeader"}
 
 	if name, _ := msg.getValue("MSH-3"); name != "" {

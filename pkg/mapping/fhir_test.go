@@ -26,7 +26,7 @@ func buildORU_R01() string {
 	segments := []string{
 		fmt.Sprintf("MSH|^~\\&|GHEGA_SENDER|GHEGA_FACILITY|GHEGA_RECEIVER|GHEGA_FACILITY|%s||%s|12346|P|2.5", time.Now().UTC().Format("20060102150405"), hl7Type),
 		"PID|1||SYNTH-MRN-002^^^GHEGA_FACILITY^MR||TESTPATIENT^SECOND||19850101|F|||456 TEST AVENUE^^TESTVILLE^TS^67890||||||||||||||||||||||",
-		"OBR|1|PLAC001|FILL001|24323-8^CBC||||20240101120000|||||||||||||||||||20240101130000|||F",
+		"OBR|1|PLAC001|FILL001|24323-8^CBC|||20240101120000|||||||||||||||20240101130000|||F",
 		"OBX|1|NM|24323-8^HGB|1|13.5|g/dL|12.0-16.0|N|F|||20240101120000",
 	}
 	return strings.Join(segments, "\r") + "\r"
@@ -151,6 +151,9 @@ func TestFHIREngine_ORU_R01(t *testing.T) {
 	if report.Status != "f" {
 		t.Errorf("DiagnosticReport.Status = %q, want f", report.Status)
 	}
+	if len(report.Identifier) == 0 {
+		t.Fatal("DiagnosticReport.Identifier is empty, want at least one identifier from OBR-1")
+	}
 }
 
 func TestFHIREngine_MissingPID(t *testing.T) {
@@ -162,18 +165,28 @@ func TestFHIREngine_MissingPID(t *testing.T) {
 		t.Fatalf("Apply failed: %v", err)
 	}
 
-	// Should still have a minimal Patient resource
-	var foundPatient bool
+	// Without a PID segment, no Patient resource should be produced.
 	for _, entry := range bundle.Entry {
 		var raw map[string]any
 		json.Unmarshal(entry.Resource, &raw)
 		if raw["resourceType"] == "Patient" {
-			foundPatient = true
+			t.Error("expected no Patient resource when PID segment is missing")
 			break
 		}
 	}
-	if !foundPatient {
-		t.Error("expected minimal Patient resource even when PID is missing")
+
+	// Should still have a MessageHeader from the MSH segment.
+	var foundHeader bool
+	for _, entry := range bundle.Entry {
+		var raw map[string]any
+		json.Unmarshal(entry.Resource, &raw)
+		if raw["resourceType"] == "MessageHeader" {
+			foundHeader = true
+			break
+		}
+	}
+	if !foundHeader {
+		t.Error("expected MessageHeader resource from MSH segment")
 	}
 }
 

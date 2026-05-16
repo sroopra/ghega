@@ -244,6 +244,15 @@ func parsePositiveInt(s string) (int, error) {
 	return n, nil
 }
 
+func (m *hl7Message) hasSegment(name string) bool {
+	for _, seg := range m.segments {
+		if seg.name == name {
+			return true
+		}
+	}
+	return false
+}
+
 func (s hl7Segment) getField(fieldNo, compNo int) (string, error) {
 	var idx int
 	if s.name == "MSH" {

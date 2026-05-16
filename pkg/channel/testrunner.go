@@ -184,6 +184,15 @@ func RunFHIRTest(fixture TestFixture) (*TestResult, error) {
 		return result, nil
 	}
 
+	expectedObject := fixture.ExpectedObject
+	if expectedObject == nil {
+		if err := json.Unmarshal([]byte(fixture.ExpectedJSON), &expectedObject); err != nil {
+			result.Passed = false
+			result.Errors = append(result.Errors, fmt.Sprintf("unmarshal expected JSON: %v", err))
+			return result, nil
+		}
+	}
+
 	var actualObject map[string]any
 	if err := json.Unmarshal(bundleJSON, &actualObject); err != nil {
 		result.Passed = false
@@ -191,7 +200,7 @@ func RunFHIRTest(fixture TestFixture) (*TestResult, error) {
 		return result, nil
 	}
 
-	diffs := jsonDiff("", actualObject, fixture.ExpectedObject)
+	diffs := jsonDiff("", actualObject, expectedObject)
 	if len(diffs) > 0 {
 		result.Passed = false
 		result.Errors = append(result.Errors, diffs...)
