@@ -99,7 +99,13 @@ func runChannelTest(args []string) error {
 	allPassed := true
 
 	for _, fixture := range fixtures {
-		result, err := channel.RunTest(fixture, ch.Mappings)
+		var result *channel.TestResult
+		var err error
+		if ch.Destination.Type == "fhir" {
+			result, err = channel.RunFHIRTest(fixture)
+		} else {
+			result, err = channel.RunTest(fixture, ch.Mappings)
+		}
 		if err != nil {
 			return fmt.Errorf("run test %q: %w", fixture.Name, err)
 		}

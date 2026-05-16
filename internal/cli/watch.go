@@ -90,7 +90,13 @@ func validateAndTest(path string) {
 
 	allPassed := true
 	for _, fixture := range fixtures {
-		result, err := channel.RunTest(fixture, ch.Mappings)
+		var result *channel.TestResult
+		var err error
+		if ch.Destination.Type == "fhir" {
+			result, err = channel.RunFHIRTest(fixture)
+		} else {
+			result, err = channel.RunTest(fixture, ch.Mappings)
+		}
 		if err != nil {
 			fmt.Printf("\033[31mTEST FAIL %s/%s: %v\033[0m\n", path, fixture.Name, err)
 			allPassed = false
