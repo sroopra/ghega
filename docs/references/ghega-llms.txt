@@ -1,0 +1,43 @@
+Ghega — Open-source healthcare integration engine
+
+Ghega processes healthcare messages (HL7v2, FHIR) through typed channel
+definitions with deterministic testing, durable message processing, replay
+safety, observability, migration tooling, and AI-assisted authoring.
+
+Key concepts:
+- Channel: a typed YAML definition of a source → engine → destination pipeline
+- Source types: MLLP, FHIR REST, HTTP, File, SFTP, Database
+- Destination types: HTTP, FHIR, File, SFTP, Database
+- Mapping: CEL expressions or Go-native HL7v2/FHIR mapping engines
+- Skills: AI-assisted authoring guides in ai/skills/ (not runtime code)
+- PayloadRef: PHI-safe metadata-only envelope for message tracking
+
+CLI commands:
+  ghega serve                     Start HTTP server + MLLP listener
+  ghega channel validate          Validate channel YAML
+  ghega channel test              Run channel tests
+  ghega channel deploy            Deploy channel to server
+  ghega channel diff              Show pending changes
+  ghega channel rollback          Rollback last deployment
+  ghega generate channel          Scaffold new channel
+  ghega migrate mirth             Import Mirth exports
+  ghega watch                     Watch channel files for changes
+
+Architecture layers (dependency flows downward):
+  Types → Config → Repo → Service → Runtime → UI
+
+PHI safety:
+  - PayloadRef and Envelope never contain raw payload bytes
+  - Logger wrapper only accepts metadata fields
+  - Skills must use synthetic data only
+  - Tests verify no PHI leakage
+
+Repository layout:
+  cmd/           CLI entrypoints
+  internal/      Private application code
+  pkg/           Public library packages
+  ai/skills/     AI-assisted authoring skills
+  ui/            React + TypeScript Console
+  docs/          Knowledge base (system of record)
+  branding/      Product metadata
+  scripts/       CI and validation scripts

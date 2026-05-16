@@ -72,7 +72,7 @@ The mapping engine converts HL7v2 segments to FHIR resources:
 
 Supported Bundle types: `batch`, `transaction`, `searchset`, `history`, `collection`.
 
-See `docs/adr/011-fhir-support.md` for architecture details.
+See `docs/design-docs/adr/011-fhir-support.md` for architecture details.
 
 ### Migration from Mirth
 
@@ -103,7 +103,7 @@ This executes all Go tests (`go test ./...`) and validation checks, including ru
 - `internal/runtime/` — Runtime boundary validation.
 - `pkg/payloadref/` — Core types (`Envelope`, `PayloadRef`) for metadata-only message handling.
 - `ai/skills/` — AI-assisted authoring skills.
-- `docs/` — Architecture Decision Records (ADRs) and guidance.
+- `docs/` — Knowledge base: design docs, ADRs, execution plans, product specs, and references.
 - `branding/` — Product metadata and visual identity placeholders.
 
-See `docs/adr/` for architectural decisions and `docs/phi-logging-guidance.md` for logging conventions.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full layered architecture and [AGENTS.md](AGENTS.md) for the agent guide.
