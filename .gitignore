@@ -4,3 +4,6 @@ ui/node_modules
 ui/dist
 ui/sbom.json
 ui/dependencies.txt
+
+# Local channel definitions (generated per-environment)
+channels/
