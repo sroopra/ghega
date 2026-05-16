@@ -143,6 +143,40 @@ func (s *SQLiteStore) GetChannelRevision(ctx context.Context, name, hash string)
 	return &rec, nil
 }
 
+// ListChannels returns the latest revision of each distinct channel, sorted by name.
+func (s *SQLiteStore) ListChannels(ctx context.Context) ([]ChannelRecord, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT c.name, c.hash, c.yaml, c.revision, c.deployed_at
+		FROM channels c
+		INNER JOIN (
+			SELECT name, MAX(revision) AS max_rev FROM channels GROUP BY name
+		) latest ON c.name = latest.name AND c.revision = latest.max_rev
+		ORDER BY c.name
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("query channels: %w", err)
+	}
+	defer rows.Close()
+
+	var out []ChannelRecord
+	for rows.Next() {
+		var rec ChannelRecord
+		var deployedAtStr string
+		if err := rows.Scan(&rec.Name, &rec.Hash, &rec.YAML, &rec.Revision, &deployedAtStr); err != nil {
+			return nil, fmt.Errorf("scan channel row: %w", err)
+		}
+		rec.DeployedAt, err = time.Parse(time.RFC3339Nano, deployedAtStr)
+		if err != nil {
+			return nil, fmt.Errorf("parse deployed_at: %w", err)
+		}
+		out = append(out, rec)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate rows: %w", err)
+	}
+	return out, nil
+}
+
 // ListChannelRevisions returns all revisions for a channel ordered by revision desc.
 func (s *SQLiteStore) ListChannelRevisions(ctx context.Context, name string) ([]ChannelRecord, error) {
 	rows, err := s.db.QueryContext(ctx, `

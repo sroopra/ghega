@@ -182,6 +182,53 @@ func testStore(t *testing.T, store ChannelStore) {
 		}
 	})
 
+	t.Run("ListChannels", func(t *testing.T) {
+		channels, err := store.ListChannels(ctx)
+		if err != nil {
+			t.Fatalf("ListChannels failed: %v", err)
+		}
+		// Should have ch-adt and ch-idem from earlier tests (sorted by name).
+		names := make([]string, len(channels))
+		for i, c := range channels {
+			names[i] = c.Name
+		}
+		if len(channels) < 2 {
+			t.Fatalf("expected at least 2 channels, got %d: %v", len(channels), names)
+		}
+		// Verify sorted order.
+		for i := 1; i < len(channels); i++ {
+			if channels[i].Name < channels[i-1].Name {
+				t.Errorf("channels not sorted: %q before %q", channels[i-1].Name, channels[i].Name)
+			}
+		}
+	})
+
+	t.Run("ListChannels_ReturnsLatestRevision", func(t *testing.T) {
+		channels, err := store.ListChannels(ctx)
+		if err != nil {
+			t.Fatalf("ListChannels failed: %v", err)
+		}
+		for _, ch := range channels {
+			if ch.Name == "ch-adt" {
+				// ch-adt was rolled back which created revision 3.
+				if ch.Revision < 2 {
+					t.Errorf("ch-adt revision = %d, expected latest (>= 2)", ch.Revision)
+				}
+			}
+		}
+	})
+
+	t.Run("ListChannels_Empty", func(t *testing.T) {
+		emptyStore := NewInMemoryStore()
+		channels, err := emptyStore.ListChannels(ctx)
+		if err != nil {
+			t.Fatalf("ListChannels failed: %v", err)
+		}
+		if len(channels) != 0 {
+			t.Errorf("expected 0 channels, got %d", len(channels))
+		}
+	})
+
 	t.Run("DeployedAt", func(t *testing.T) {
 		before := time.Now().UTC().Add(-time.Second)
 		err := store.SaveChannel(ctx, "ch-time", "hash-t", []byte("yaml-t"), 0)

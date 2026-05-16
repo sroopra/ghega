@@ -59,10 +59,17 @@ func runServe(args []string) error {
 	}
 
 	alertStore := alerts.NewInMemoryAlertStore()
+
+	chStore, chStoreErr := initChannelStore()
+	if chStoreErr != nil {
+		slog.Warn("failed to open channel store, channels API will return empty", "error", chStoreErr)
+	}
+
 	srv := server.New(store, alertStore,
 		server.WithAuthConfig(authConfig),
 		server.WithSessionManager(sessionMgr),
 		server.WithOIDCProvider(oidcProvider),
+		server.WithChannelStore(chStore),
 	)
 	srv.SetMigrationsDir(*migrationsDir)
 	httpSrv := &http.Server{

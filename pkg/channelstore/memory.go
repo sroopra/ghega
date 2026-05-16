@@ -107,6 +107,36 @@ func (s *InMemoryStore) GetChannelRevision(_ context.Context, name, hash string)
 	return nil, &ErrNotFound{Name: name, Hash: hash}
 }
 
+// ListChannels returns the latest revision of each distinct channel, sorted by name.
+func (s *InMemoryStore) ListChannels(_ context.Context) ([]ChannelRecord, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	names := make([]string, 0, len(s.channels))
+	for name := range s.channels {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	var out []ChannelRecord
+	for _, name := range names {
+		revs := s.channels[name]
+		if len(revs) == 0 {
+			continue
+		}
+		latest := revs[0]
+		for _, r := range revs[1:] {
+			if r.Revision > latest.Revision {
+				latest = r
+			}
+		}
+		cp := latest
+		cp.YAML = append([]byte(nil), cp.YAML...)
+		out = append(out, cp)
+	}
+	return out, nil
+}
+
 // ListChannelRevisions returns all revisions for a channel ordered by revision desc.
 func (s *InMemoryStore) ListChannelRevisions(_ context.Context, name string) ([]ChannelRecord, error) {
 	s.mu.RLock()

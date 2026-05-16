@@ -19,6 +19,9 @@ type ChannelStore interface {
 	// GetChannelRevision returns a specific revision by its hash.
 	GetChannelRevision(ctx context.Context, name, hash string) (*ChannelRecord, error)
 
+	// ListChannels returns the latest revision of each distinct channel, sorted by name.
+	ListChannels(ctx context.Context) ([]ChannelRecord, error)
+
 	// ListChannelRevisions returns all revisions for a channel ordered by revision desc.
 	ListChannelRevisions(ctx context.Context, name string) ([]ChannelRecord, error)
 

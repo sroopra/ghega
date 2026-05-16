@@ -15,6 +15,7 @@ import (
 	"github.com/sroopra/ghega/internal/alerts"
 	"github.com/sroopra/ghega/internal/config"
 	"github.com/sroopra/ghega/internal/session"
+	"github.com/sroopra/ghega/pkg/channelstore"
 	"github.com/sroopra/ghega/pkg/messagestore"
 	"github.com/sroopra/ghega/pkg/payloadref"
 	"golang.org/x/oauth2"
@@ -109,7 +110,47 @@ func TestChannels(t *testing.T) {
 		t.Fatalf("decode channels: %v", err)
 	}
 	if len(channels) != 0 {
-		t.Fatalf("len(channels) = %d, want 0", len(channels))
+		t.Fatalf("len(channels) = %d, want 0 (no channel store)", len(channels))
+	}
+}
+
+func TestChannels_WithStore(t *testing.T) {
+	ctx := context.Background()
+	store := messagestore.NewInMemoryStore()
+	chStore := channelstore.NewInMemoryStore()
+
+	_ = chStore.SaveChannel(ctx, "adt-feed", "hash-a", []byte("yaml-a"), 0)
+	_ = chStore.SaveChannel(ctx, "lab-results", "hash-b", []byte("yaml-b"), 0)
+
+	srv := New(store, newTestAlertStore(), WithChannelStore(chStore))
+	ts := httptest.NewServer(srv.Handler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/v1/channels")
+	if err != nil {
+		t.Fatalf("channels request: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	var channels []channelResponse
+	if err := json.NewDecoder(resp.Body).Decode(&channels); err != nil {
+		t.Fatalf("decode channels: %v", err)
+	}
+	if len(channels) != 2 {
+		t.Fatalf("len(channels) = %d, want 2", len(channels))
+	}
+	if channels[0].Name != "adt-feed" {
+		t.Errorf("channels[0].Name = %q, want %q", channels[0].Name, "adt-feed")
+	}
+	if channels[1].Name != "lab-results" {
+		t.Errorf("channels[1].Name = %q, want %q", channels[1].Name, "lab-results")
+	}
+	if channels[0].ID != "adt-feed" {
+		t.Errorf("channels[0].ID = %q, want %q", channels[0].ID, "adt-feed")
 	}
 }
 

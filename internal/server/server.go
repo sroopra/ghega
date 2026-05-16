@@ -14,6 +14,7 @@ import (
 	"github.com/sroopra/ghega/internal/alerts"
 	"github.com/sroopra/ghega/internal/config"
 	"github.com/sroopra/ghega/internal/session"
+	"github.com/sroopra/ghega/pkg/channelstore"
 	"github.com/sroopra/ghega/pkg/messagestore"
 	"github.com/sroopra/ghega/pkg/migration"
 	"github.com/sroopra/ghega/pkg/payloadref"
@@ -24,6 +25,7 @@ import (
 type Server struct {
 	store         messagestore.Store
 	alertStore    alerts.AlertStore
+	channelStore  channelstore.ChannelStore
 	migrationsDir string
 	authConfig    config.AuthConfig
 	sessionMgr    *session.Manager
@@ -46,6 +48,11 @@ func WithSessionManager(mgr *session.Manager) ServerOption {
 // WithOIDCProvider sets the OIDC provider.
 func WithOIDCProvider(op *OIDCProvider) ServerOption {
 	return func(s *Server) { s.oidcProvider = op }
+}
+
+// WithChannelStore sets the channel store for listing deployed channels.
+func WithChannelStore(cs channelstore.ChannelStore) ServerOption {
+	return func(s *Server) { s.channelStore = cs }
 }
 
 // New creates a new Server with the given store and alertStore.
@@ -231,8 +238,25 @@ func (s *Server) handleGetMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListChannels(w http.ResponseWriter, r *http.Request) {
-	// TODO: Wire this to pkg/channelstore once channels are persisted through the API.
-	writeJSON(w, []channelResponse{})
+	if s.channelStore == nil {
+		writeJSON(w, []channelResponse{})
+		return
+	}
+
+	records, err := s.channelStore.ListChannels(r.Context())
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "failed to list channels")
+		return
+	}
+
+	resp := make([]channelResponse, len(records))
+	for i, rec := range records {
+		resp[i] = channelResponse{
+			ID:   rec.Name,
+			Name: rec.Name,
+		}
+	}
+	writeJSON(w, resp)
 }
 
 func (s *Server) handleListAlerts(w http.ResponseWriter, r *http.Request) {
