@@ -11,6 +11,7 @@ Ghega is an open-source healthcare integration engine. This file is the entrypoi
 | [docs/design-docs/index.md](docs/design-docs/index.md) | Design documents and ADRs |
 | [docs/design-docs/core-beliefs.md](docs/design-docs/core-beliefs.md) | Durable engineering principles |
 | [docs/exec-plans/](docs/exec-plans/) | Active and completed execution plans |
+| [docs/exec-plans/project-assessment-2026-05.md](docs/exec-plans/project-assessment-2026-05.md) | Full project assessment: what works, gaps, priorities |
 | [docs/product-specs/index.md](docs/product-specs/index.md) | Product specifications |
 | [docs/references/](docs/references/) | External reference material |
 
